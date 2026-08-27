@@ -14,6 +14,13 @@ jobs:
 
       - uses: jdx/mise-action@v2   # installs the versions pinned in mise.toml
 
+      - name: Install gitleaks
+        run: |
+          V=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
       - name: OpenTofu fmt
         run: tofu fmt -recursive -check modules
 
@@ -21,6 +28,8 @@ jobs:
         run: terragrunt hcl fmt --check --diff
 
       - name: tflint (all modules)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tflint --init
           for d in modules/*/; do (cd "$d" && tflint) || exit 1; done
@@ -28,20 +37,31 @@ jobs:
       - name: trivy config
         run: trivy config . --exit-code 1 --skip-version-check
 
-      - name: gitleaks (origin-name rule from secret)
+      - name: terraform-docs drift check
+        run: |
+          for d in modules/*/; do
+            terraform-docs markdown table --output-file README.md --output-mode inject "$d"
+          done
+          if ! git diff --quiet -- 'modules/*/README.md'; then
+            echo "::error::A module README is stale. Run 'make docs' and commit."
+            git --no-pager diff -- 'modules/*/README.md'
+            exit 1
+          fi
+
+      - name: gitleaks
         env:
+          # The origin-name rule is provisioned from a repo secret so the name is never committed.
           ORIGIN_PATTERN: ${{ secrets.ORIGIN_NAME_PATTERN }}
         run: |
-          # The origin-name rule is provisioned from a repo secret so the name is never committed.
           cp .gitleaks.toml .gitleaks.ci.toml
           if [ -n "$ORIGIN_PATTERN" ]; then
-            cat >> .gitleaks.ci.toml <<TOML
-
-          [[rules]]
-          id = "origin-identifiers"
-          description = "Origin identifiers (from secret)"
-          regex = '''(?i)($ORIGIN_PATTERN)'''
-          TOML
+            {
+              echo ""
+              echo "[[rules]]"
+              echo 'id = "origin-identifiers"'
+              echo 'description = "Origin identifiers (from secret)"'
+              echo "regex = '''(?i)(${ORIGIN_PATTERN})'''"
+            } >> .gitleaks.ci.toml
           fi
           gitleaks detect --source . --config .gitleaks.ci.toml --no-banner --redact
 
