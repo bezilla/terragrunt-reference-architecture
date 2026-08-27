@@ -1,0 +1,6 @@
+# Default owners for everything in the repo.
+*   @platform-team
+
+/modules/          @platform-team
+/live/             @platform-team
+/docs/adr/         @platform-team

@@ -1,0 +1,58 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# No AWS credentials are configured in this workflow: everything here runs offline.
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2   # installs the versions pinned in mise.toml
+
+      - name: OpenTofu fmt
+        run: tofu fmt -recursive -check modules
+
+      - name: Terragrunt HCL fmt
+        run: terragrunt hcl fmt --check --diff
+
+      - name: tflint (all modules)
+        run: |
+          tflint --init
+          for d in modules/*/; do (cd "$d" && tflint) || exit 1; done
+
+      - name: trivy config
+        run: trivy config . --exit-code 1 --skip-version-check
+
+      - name: gitleaks (origin-name rule from secret)
+        env:
+          ORIGIN_PATTERN: ${{ secrets.ORIGIN_NAME_PATTERN }}
+        run: |
+          # The origin-name rule is provisioned from a repo secret so the name is never committed.
+          cp .gitleaks.toml .gitleaks.ci.toml
+          if [ -n "$ORIGIN_PATTERN" ]; then
+            cat >> .gitleaks.ci.toml <<TOML
+
+          [[rules]]
+          id = "origin-identifiers"
+          description = "Origin identifiers (from secret)"
+          regex = '''(?i)($ORIGIN_PATTERN)'''
+          TOML
+          fi
+          gitleaks detect --source . --config .gitleaks.ci.toml --no-banner --redact
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+
+      - name: Seed account config from examples
+        run: for a in management staging prod; do cp live/$a/account.hcl.example live/$a/account.hcl; done
+
+      - name: Offline validate (no credentials)
+        run: make validate ENV=staging

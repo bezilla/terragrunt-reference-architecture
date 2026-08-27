@@ -1,0 +1,8 @@
+# Optional cost estimation. Run: infracost breakdown --config-file infracost.yml
+# Requires INFRACOST_API_KEY. Terragrunt projects are detected via the stack directories.
+version: 0.1
+projects:
+  - path: live/prod/us-west-2/prod
+    name: prod
+  - path: live/staging/us-west-2/staging
+    name: staging

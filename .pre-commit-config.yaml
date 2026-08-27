@@ -1,0 +1,32 @@
+# Run: pre-commit install && pre-commit run --all-files
+repos:
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.99.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+      - id: terraform_docs
+        args: ["--args=--output-file README.md --output-mode inject"]
+      - id: terraform_tflint
+        args: ["--args=--config=__GIT_WORKING_DIR__/.tflint.hcl"]
+      - id: terraform_trivy
+        args: ["--args=--skip-dirs=**/.terragrunt-cache"]
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.25
+    hooks:
+      - id: terragrunt-hclfmt
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        # Uses the committed .gitleaks.toml. For the origin-name rule, run `make scan` locally
+        # (it uses the gitignored .gitleaks.local.toml).
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict

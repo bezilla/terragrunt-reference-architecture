@@ -34,3 +34,7 @@ kubeconfig*
 *~
 .idea/
 .vscode/
+
+# Per-account config is filled in from the .example templates; the real files are local.
+live/*/account.hcl
+!live/*/account.hcl.example
