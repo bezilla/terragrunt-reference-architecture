@@ -1,6 +1,6 @@
 # acm-certificate
 
-DNS-validated ACM certificate. Emits the validation CNAMEs into a Route53 zone and blocks until issuance, so issuance and renewal are fully automated (no email validation).
+DNS-validated ACM certificate **for CloudFront** (issued in us-east-1 via a required `aws.us_east_1` aliased provider). Emits the validation CNAMEs into a Route53 zone and blocks until issuance, so issuance and renewal are fully automated (no email validation).
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -14,7 +14,7 @@ DNS-validated ACM certificate. Emits the validation CNAMEs into a Route53 zone a
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.62.0 |
+| <a name="provider_aws.us_east_1"></a> [aws.us\_east\_1](#provider\_aws.us\_east\_1) | 6.62.0 |
 
 ## Modules
 

@@ -1,4 +1,10 @@
 # Pinned toolchain for reproducible runs. Install with: mise install
+#
+# These are EXACT versions, not ranges, on purpose. The offline-validation gate (see the Makefile
+# `validate` target) relies on `terragrunt --experiment optional-dependency-outputs`, an
+# experimental flag whose name/behavior can change between Terragrunt releases. Pinning the exact
+# terragrunt + tofu the gate was proven on keeps `make validate` working; bump deliberately and
+# re-verify the gate, don't float.
 [tools]
 opentofu       = "1.12.6"
 terragrunt     = "1.1.3"

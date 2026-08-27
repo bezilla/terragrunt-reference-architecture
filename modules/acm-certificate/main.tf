@@ -1,10 +1,12 @@
-# DNS-validated ACM certificate.
+# DNS-validated ACM certificate for CloudFront (us-east-1).
 #
 # DNS validation (not email) so issuance and renewal are fully automated: ACM emits the validation
 # CNAMEs, this module writes them into Route53, and aws_acm_certificate_validation blocks until the
 # cert is issued.
 
 resource "aws_acm_certificate" "this" {
+  provider = aws.us_east_1
+
   domain_name               = var.domain_name
   subject_alternative_names = var.subject_alternative_names
   validation_method         = "DNS"
@@ -17,6 +19,8 @@ resource "aws_acm_certificate" "this" {
 }
 
 resource "aws_route53_record" "validation" {
+  provider = aws.us_east_1
+
   for_each = {
     for dvo in aws_acm_certificate.this.domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
@@ -34,6 +38,8 @@ resource "aws_route53_record" "validation" {
 }
 
 resource "aws_acm_certificate_validation" "this" {
+  provider = aws.us_east_1
+
   certificate_arn         = aws_acm_certificate.this.arn
   validation_record_fqdns = [for r in aws_route53_record.validation : r.fqdn]
 }

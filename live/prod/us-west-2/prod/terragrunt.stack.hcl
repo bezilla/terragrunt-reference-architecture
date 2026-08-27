@@ -71,6 +71,24 @@ unit "dns" {
   }
 }
 
+unit "edge_cert" {
+  source = "${get_repo_root()}/catalog/units/acm-certificate"
+  path   = "acm-certificate"
+  values = {
+    domain_name               = "example.com"
+    subject_alternative_names = ["www.example.com"]
+  }
+}
+
+unit "cloudfront" {
+  source = "${get_repo_root()}/catalog/units/cloudfront-waf"
+  path   = "cloudfront-waf"
+  values = {
+    aliases            = ["www.example.com"]
+    origin_domain_name = "origin.example.com"
+  }
+}
+
 unit "namespace_web" {
   source = "${get_repo_root()}/catalog/units/k8s-namespace"
   path   = "namespace-web"
