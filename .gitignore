@@ -1,0 +1,36 @@
+# OpenTofu / Terraform
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terragrunt
+.terragrunt-cache/
+.terragrunt-stack/
+
+# Variables that may hold real values (examples are tracked explicitly)
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+!example.tfvars
+
+# Secrets / local tooling
+.env
+.env.*
+*.pem
+*.key
+kubeconfig*
+.gitleaks.local.toml
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
