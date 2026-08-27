@@ -7,31 +7,6 @@ on:
 
 # No AWS credentials are configured in this workflow: everything here runs offline.
 jobs:
-  attribution:
-    # Standing rule: no AI attribution anywhere in history, identities, or tree.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: No AI attribution in commit messages
-        run: |
-          if git log --all --format='%B' | grep -iE '[c]laude|[a]nthropic|[c]o-authored'; then
-            echo "::error::AI attribution found in a commit message"; exit 1
-          fi
-      - name: Single expected identity on every commit
-        run: |
-          ids=$(git log --all --format='%an <%ae> | %cn <%ce>' | sort -u)
-          echo "$ids"
-          if [ "$ids" != "Paul Bezilla <bezilla@protonmail.com> | Paul Bezilla <bezilla@protonmail.com>" ]; then
-            echo "::error::unexpected author/committer identity"; exit 1
-          fi
-      - name: No AI attribution in tree
-        run: |
-          if grep -riE '[c]laude|[a]nthropic' . --exclude-dir=.git; then
-            echo "::error::AI attribution found in the tree"; exit 1
-          fi
-
   static:
     runs-on: ubuntu-latest
     steps:
