@@ -1,0 +1,9 @@
+locals {
+  namespace    = "acme"
+  account_id   = "222222222222"
+  account_name = "staging"
+
+  # ARN of the role Terragrunt assumes to deploy into this account. Leave empty for local
+  # credential-less validation. Example: "arn:aws:iam::222222222222ole/terragrunt-deploy"
+  deploy_role_arn = ""
+}
