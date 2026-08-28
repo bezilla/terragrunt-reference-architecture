@@ -1,0 +1,47 @@
+name: apply-stack
+
+# Reusable single-stack apply, called by apply.yml once per environment.
+on:
+  workflow_call:
+    inputs:
+      stack:       { required: true, type: string }
+      environment: { required: true, type: string }
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # gates on the environment's protection rules
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+
+      - id: guard
+        run: |
+          if [ -z "${{ vars.AWS_APPLY_ROLE_ARN }}" ]; then
+            echo "AWS_APPLY_ROLE_ARN is not set — skipping apply for ${{ inputs.stack }}."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.guard.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+
+      - name: Seed account config
+        if: steps.guard.outputs.enabled == 'true'
+        run: for a in management staging prod; do cp live/$a/account.hcl.example live/$a/account.hcl; done
+
+      - name: Terragrunt apply
+        if: steps.guard.outputs.enabled == 'true'
+        run: |
+          cd "live/${{ inputs.stack }}"
+          terragrunt stack generate
+          terragrunt run --all apply --non-interactive

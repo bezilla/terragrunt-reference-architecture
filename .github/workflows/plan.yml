@@ -1,0 +1,134 @@
+name: plan
+
+# Terragrunt plan on PRs, with the plan and an infracost diff posted back as a comment.
+# Authenticates to AWS with GitHub OIDC — no long-lived keys. Requires the repository variable
+# AWS_PLAN_ROLE_ARN (Settings > Secrets and variables > Actions > Variables). When it is unset the
+# job skips cleanly with a message rather than failing, so forks work out of the box.
+#
+# The IAM role this assumes needs a trust policy allowing this repo's PRs to assume it via OIDC:
+#
+#   {
+#     "Effect": "Allow",
+#     "Principal": { "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com" },
+#     "Action": "sts:AssumeRoleWithWebIdentity",
+#     "Condition": {
+#       "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+#       "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:<OWNER>/<REPO>:pull_request" }
+#     }
+#   }
+#
+# The iam-github-oidc module provisions exactly this role — set AWS_PLAN_ROLE_ARN to its output.
+
+on:
+  pull_request:
+
+permissions:
+  id-token: write      # OIDC
+  contents: read
+  pull-requests: write # to post the plan comment
+
+concurrency:
+  group: plan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.detect.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: detect
+        name: Detect changed stacks
+        run: |
+          # A stack is affected if its own files, the catalog, or any module changed.
+          base="${{ github.event.pull_request.base.sha }}"
+          changed="$(git diff --name-only "$base"...HEAD)"
+          declare -A MAP=( [management]="management/us-west-2/global" [staging]="staging/us-west-2/staging" [prod]="prod/us-west-2/prod" )
+          stacks=()
+          for acct in management staging prod; do
+            if echo "$changed" | grep -qE "^(live/${acct}/|catalog/|modules/|live/root\.hcl)"; then
+              stacks+=("${MAP[$acct]}")
+            fi
+          done
+          echo "Affected stacks: ${stacks[*]:-none}"
+          if [ ${#stacks[@]} -eq 0 ]; then
+            echo "stacks=[]" >> "$GITHUB_OUTPUT"
+          else
+            printf 'stacks=%s\n' "$(printf '%s\n' "${stacks[@]}" | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+          fi
+
+  plan:
+    needs: changed
+    if: needs.changed.outputs.stacks != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.changed.outputs.stacks) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+
+      - id: guard
+        name: Check AWS role is configured
+        run: |
+          if [ -z "${{ vars.AWS_PLAN_ROLE_ARN }}" ]; then
+            echo "AWS_PLAN_ROLE_ARN is not set — skipping plan for this stack (configure it to enable)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.guard.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+
+      - name: Seed account config
+        if: steps.guard.outputs.enabled == 'true'
+        run: for a in management staging prod; do cp live/$a/account.hcl.example live/$a/account.hcl; done
+
+      - name: Terragrunt plan
+        if: steps.guard.outputs.enabled == 'true'
+        id: plan
+        run: |
+          cd "live/${{ matrix.stack }}"
+          terragrunt stack generate
+          terragrunt run --all plan --non-interactive 2>&1 | tee /tmp/plan.txt
+
+      - name: Install conftest
+        if: steps.guard.outputs.enabled == 'true'
+        run: |
+          V=0.69.0
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v${V}/conftest_${V}_Linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin conftest
+
+      - name: Policy check against plan JSON
+        if: steps.guard.outputs.enabled == 'true'
+        run: |
+          cd "live/${{ matrix.stack }}"
+          for u in .terragrunt-stack/*/; do
+            (cd "$u" && tofu show -json tofuplan 2>/dev/null > plan.json) || continue
+            conftest test --policy "$GITHUB_WORKSPACE/policy" "$u/plan.json" || exit 1
+          done
+
+      - name: Infracost diff
+        if: steps.guard.outputs.enabled == 'true' && env.INFRACOST_API_KEY != ''
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+        run: |
+          infracost breakdown --path "live/${{ matrix.stack }}" --format table | tee /tmp/cost.txt || true
+
+      - name: Post plan comment
+        if: steps.guard.outputs.enabled == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.existsSync('/tmp/plan.txt') ? fs.readFileSync('/tmp/plan.txt','utf8').slice(-60000) : '(no plan output)';
+            const cost = fs.existsSync('/tmp/cost.txt') ? fs.readFileSync('/tmp/cost.txt','utf8') : '(infracost not configured)';
+            const body = `### Plan — \`${{ matrix.stack }}\`\n\n<details><summary>terragrunt run --all plan</summary>\n\n\`\`\`\n${plan}\n\`\`\`\n</details>\n\n<details><summary>infracost</summary>\n\n\`\`\`\n${cost}\n\`\`\`\n</details>`;
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });

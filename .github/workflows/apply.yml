@@ -1,0 +1,48 @@
+name: apply
+
+# Apply on merge to main, one stack at a time, gated by GitHub Environments.
+#
+# The consumer MUST create three environments (Settings > Environments): "management", "staging",
+# and "prod". Put required reviewers on "prod" (and optionally a wait timer) so a human approves
+# production applies. The jobs run in order management -> staging -> prod; a failure stops the chain.
+#
+# Authenticates with OIDC via the AWS_APPLY_ROLE_ARN repository variable. Unset => the jobs skip
+# cleanly. The apply role's trust policy is the plan role's, with the sub condition scoped to
+# `repo:<OWNER>/<REPO>:ref:refs/heads/main` and (ideally) `:environment:<name>`.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+# One apply at a time, ever — never let two runs mutate state concurrently.
+concurrency:
+  group: apply
+  cancel-in-progress: false
+
+jobs:
+  management:
+    uses: ./.github/workflows/apply-stack.yml
+    with:
+      stack: management/us-west-2/global
+      environment: management
+    secrets: inherit
+
+  staging:
+    needs: management
+    uses: ./.github/workflows/apply-stack.yml
+    with:
+      stack: staging/us-west-2/staging
+      environment: staging
+    secrets: inherit
+
+  prod:
+    needs: staging
+    uses: ./.github/workflows/apply-stack.yml
+    with:
+      stack: prod/us-west-2/prod
+      environment: prod
+    secrets: inherit
