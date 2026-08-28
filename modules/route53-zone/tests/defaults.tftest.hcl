@@ -28,7 +28,7 @@ run "records_created_from_map" {
   command = plan
   variables {
     records = {
-      www = { name = "www.example.com", type = "CNAME", records = ["example.com"] }
+      www  = { name = "www.example.com", type = "CNAME", records = ["example.com"] }
       apex = { name = "example.com", type = "A", ttl = 60, records = ["203.0.113.10"] }
     }
   }
