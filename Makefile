@@ -50,7 +50,9 @@ plan: ## Plan the ENV stack (requires AWS credentials)
 	cd $(STACK_DIR) && terragrunt stack generate && terragrunt run --all plan --non-interactive
 
 test: ## Run module unit tests (tofu test) and policy tests (conftest)
-	@for d in modules/*/; do \
+	@mkdir -p $${TF_PLUGIN_CACHE_DIR:-$$HOME/.terraform.d/plugin-cache}
+	@export TF_PLUGIN_CACHE_DIR=$${TF_PLUGIN_CACHE_DIR:-$$HOME/.terraform.d/plugin-cache}; \
+	for d in modules/*/; do \
 		echo "== test $$d"; \
 		( cd $$d && tofu init -backend=false -input=false >/dev/null 2>&1 && tofu test ) || exit 1; \
 	done
