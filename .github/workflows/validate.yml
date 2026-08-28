@@ -76,3 +76,19 @@ jobs:
 
       - name: Offline validate (no credentials)
         run: make validate ENV=staging
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+
+      - name: Install conftest
+        run: |
+          V=0.69.0
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v${V}/conftest_${V}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest --version
+
+      - name: Module unit tests + policy tests
+        run: make test

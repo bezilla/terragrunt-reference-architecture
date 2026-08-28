@@ -20,7 +20,7 @@ MGMT_DIR  := live/management/us-west-2/global
 OFFLINE_VALIDATE = TG_DISABLE_BACKEND=true terragrunt run --all validate \
 	--non-interactive --no-dependency-outputs --experiment optional-dependency-outputs
 
-.PHONY: fmt fmt-check validate lint docs plan generate scan clean help
+.PHONY: fmt fmt-check validate lint test docs plan generate scan clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -48,6 +48,13 @@ docs: ## Regenerate per-module READMEs with terraform-docs
 
 plan: ## Plan the ENV stack (requires AWS credentials)
 	cd $(STACK_DIR) && terragrunt stack generate && terragrunt run --all plan --non-interactive
+
+test: ## Run module unit tests (tofu test) and policy tests (conftest)
+	@for d in modules/*/; do \
+		echo "== test $$d"; \
+		( cd $$d && tofu init -backend=false -input=false >/dev/null 2>&1 && tofu test ) || exit 1; \
+	done
+	conftest verify --policy policy
 
 scan: ## Secret + origin-identifier scan (run from repo root; needs .gitleaks.local.toml)
 	@test -f .gitleaks.local.toml || { echo "missing .gitleaks.local.toml (holds the origin-name rule; gitignored, CI-provisioned)"; exit 1; }
