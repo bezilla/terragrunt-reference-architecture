@@ -123,6 +123,7 @@ Each links to its ADR:
 - [S3 native locking](docs/adr/0005-s3-native-locking-over-dynamodb.md) — no DynamoDB lock table.
 - [Managed node groups](docs/adr/0006-eks-managed-node-groups.md) — one worker strategy, not three.
 - [Tagging via default_tags](docs/adr/0007-tagging-and-default-tags.md) — baseline tags once, in the provider.
+- [Deploy pipeline](docs/adr/0008-deploy-pipeline-apply-on-merge.md) — apply on merge, gated by a prod environment reviewer.
 
 ### What this deliberately does not do
 

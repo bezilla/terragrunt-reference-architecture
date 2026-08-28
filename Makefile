@@ -59,7 +59,7 @@ test: ## Run module unit tests (tofu test) and policy tests (conftest)
 	conftest verify --policy policy
 
 scan: ## Secret + origin-identifier scan (run from repo root; needs .gitleaks.local.toml)
-	@test -f .gitleaks.local.toml || { echo "missing .gitleaks.local.toml (holds the origin-name rule; gitignored, CI-provisioned)"; exit 1; }
+	@test -f .gitleaks.local.toml || { echo "missing .gitleaks.local.toml (holds the origin-name rule; gitignored, local-only)"; exit 1; }
 	gitleaks detect --source . --config .gitleaks.local.toml --no-banner --redact
 	trufflehog filesystem . --no-update --results=verified,unknown
 
