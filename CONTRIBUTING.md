@@ -10,6 +10,7 @@ make fmt          # format HCL + tofu
 make validate     # offline validate (no AWS credentials)
 make lint         # tflint across modules
 make scan         # gitleaks + trufflehog (needs .gitleaks.local.toml)
+pre-commit install --hook-type pre-commit --hook-type pre-push   # once
 pre-commit run --all-files
 ```
 

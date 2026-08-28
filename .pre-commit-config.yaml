@@ -30,3 +30,20 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-merge-conflict
+
+  # Local hooks that mirror the CI validate workflow, so local and CI never disagree. The heavier
+  # checks run at pre-push (install with: pre-commit install --hook-type pre-commit --hook-type pre-push).
+  - repo: local
+    hooks:
+      - id: terragrunt-validate
+        name: offline run --all validate
+        entry: make validate
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: module-and-policy-tests
+        name: tofu test + conftest policy tests
+        entry: make test
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

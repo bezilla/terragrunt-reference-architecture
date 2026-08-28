@@ -1,6 +1,8 @@
-# Default owners for everything in the repo.
-*   @platform-team
+# Default owner for everything in the repo.
+*   @bezilla
 
-/modules/          @platform-team
-/live/             @platform-team
-/docs/adr/         @platform-team
+/modules/          @bezilla
+/live/             @bezilla
+/docs/adr/         @bezilla
+/policy/           @bezilla
+/.github/          @bezilla
