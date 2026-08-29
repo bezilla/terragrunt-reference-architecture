@@ -57,3 +57,18 @@ deny contains msg if {
 	opts.http_tokens != "required"
 	msg := sprintf("%s: IMDSv2 (metadata http_tokens=required) must be enforced", [rc.address])
 }
+
+# 5. Kubernetes resources must carry the managed-by label, so ownership and env filtering are as
+# consistent for in-cluster objects as mandatory tags make them for cloud resources. Guarded like
+# the tag rule: only resources that set a labels object are checked.
+required_k8s_label := "app.kubernetes.io/managed-by"
+
+deny contains msg if {
+	some rc in input.resource_changes
+	startswith(rc.type, "kubernetes_")
+	some m in rc.change.after.metadata
+	labels := m.labels
+	is_object(labels)
+	not labels[required_k8s_label]
+	msg := sprintf("%s is missing required label %q", [rc.address, required_k8s_label])
+}

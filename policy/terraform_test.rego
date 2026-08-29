@@ -61,3 +61,16 @@ test_imdsv2_passes if {
 		{"address": "aws_launch_template.n", "type": "aws_launch_template", "change": {"after": {"metadata_options": [{"http_tokens": "required"}]}}},
 	]}
 }
+
+# --- kubernetes labels ---
+test_labeled_k8s_resource_passes if {
+	count(deny) == 0 with input as {"resource_changes": [
+		{"address": "kubernetes_config_map_v1.x", "type": "kubernetes_config_map_v1", "change": {"after": {"metadata": [{"labels": {"app.kubernetes.io/managed-by": "opentofu"}}]}}},
+	]}
+}
+
+test_unlabeled_k8s_resource_denied if {
+	count(deny) > 0 with input as {"resource_changes": [
+		{"address": "kubernetes_config_map_v1.x", "type": "kubernetes_config_map_v1", "change": {"after": {"metadata": [{"labels": {"app.kubernetes.io/part-of": "observability"}}]}}},
+	]}
+}
