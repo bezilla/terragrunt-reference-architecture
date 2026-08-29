@@ -69,7 +69,7 @@ jobs:
         stack: ${{ fromJSON(needs.changed.outputs.stacks) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4
 
       - id: guard
         name: Check AWS role is configured
