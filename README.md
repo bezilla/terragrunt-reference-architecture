@@ -126,6 +126,9 @@ Each links to its ADR:
 - [Deploy pipeline](docs/adr/0008-deploy-pipeline-apply-on-merge.md) — apply on merge, gated by a prod environment reviewer.
 - [Observability & the OTel collector](docs/adr/0009-otel-collector-and-optional-kafka-bus.md) — the collector as the cloud-portability seam; Kafka only above a stated bar.
 
+Monitoring is shown mid-migration on purpose: the incumbent `datadog-monitors` and the portable OpenTelemetry collector layer run side by side, the export seam letting them coexist rather than forcing a big-bang cutover.
+The retirement criteria for the Datadog unit — and what stays vendor-native on purpose — are in [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).
+
 ### What this deliberately does not do
 
 Scope is a choice; these omissions are intentional, not unfinished:
@@ -136,8 +139,9 @@ Scope is a choice; these omissions are intentional, not unfinished:
   complexity at a scale a reference repo can't honestly demonstrate.
 - **One Kubernetes compute model.** Managed node groups only — no self-managed ASGs, no Karpenter,
   no Fargate mix. When each of those is worth it is in [ADR-0006](docs/adr/0006-eks-managed-node-groups.md).
-- **One CDN and one monitoring vendor.** CloudFront and Datadog, not a multi-vendor edge or an
-  abstraction over observability backends.
+- **One CDN, and monitoring shown mid-migration.** CloudFront, not a multi-vendor edge; and a single
+  incumbent monitoring vendor (Datadog) running alongside the portable OpenTelemetry layer, not an
+  abstraction over observability backends (see ADR-0009).
 
 ## Day 2
 

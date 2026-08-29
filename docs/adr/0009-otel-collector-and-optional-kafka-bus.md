@@ -55,3 +55,18 @@ Below that bar, Kafka is unjustified cost and operational load, and the collecto
 is the right answer. And because Kafka, when enabled, sits directly in the telemetry path, it is
 itself monitored — consumer lag, lag *growth*, ISR shrink, and partition skew all alert — so the bus
 cannot fail silently and take the telemetry down with it.
+
+## Coexistence with the incumbent monitoring (amendment)
+The repo ships both a vendor-native monitoring unit (`datadog-monitors`) and this portable collector
+layer, and that is deliberate rather than a contradiction: it is the migration state the architecture
+is built to make safe. Datadog is the incumbent — the monitoring that already exists and pages today;
+the collector layer is the portable target; and the export seam is exactly what lets them run side by
+side, dual-writing telemetry, so a team migrates incrementally and cuts over on evidence instead of
+performing a big-bang swap. The Datadog unit is retired only once the portable path has earned it:
+every service emits OTLP through the collector, the RED/USE dashboards and SLO burn-rate alerts reach
+parity with the Datadog monitors they replace, paging has moved to Alertmanager → PagerDuty, and the
+two have run in parallel long enough to prove the portable stack catches what the vendor caught — at
+which point `datadog-monitors` is removed. Some things stay vendor-native on purpose: capabilities
+with no self-hostable equivalent worth operating (for example global synthetic/uptime probes, or a
+specific SaaS product integration) are not portability wins to chase — the goal is a portable
+telemetry pipeline, not the eradication of every managed feature.
