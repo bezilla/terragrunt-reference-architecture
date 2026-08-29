@@ -18,7 +18,7 @@ variable "notification_targets" {
 variable "monitors" {
   description = <<-EOT
     Map of monitors to create, keyed by an id. One module, many monitor definitions — this
-    consolidates what were eleven near-identical monitor modules in the source system into a
+    collapses what would otherwise be many near-identical monitor modules into a
     single data-driven factory. Each entry:
       - name:            human-readable monitor name (environment is prefixed automatically)
       - type:            Datadog monitor type ("metric alert", "event-v2 alert", "query alert", ...)

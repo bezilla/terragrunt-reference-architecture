@@ -1,8 +1,7 @@
 # IAM Roles for Service Accounts (IRSA).
 #
-# The pattern the source system never adopted despite having an OIDC provider: instead of static
-# access keys handed to applications, pods assume a role scoped to their exact
-# namespace/serviceaccount via the cluster's OIDC provider.
+# The keyless-workload pattern: instead of static access keys handed to applications, pods assume
+# a role scoped to their exact namespace/serviceaccount via the cluster's OIDC provider.
 
 data "aws_iam_policy_document" "irsa_assume_role" {
   for_each = var.irsa_roles

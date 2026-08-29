@@ -1,6 +1,6 @@
 # k8s-namespace
 
-Kubernetes namespace with baseline RBAC (editor groups bound to the built-in `edit` ClusterRole) and an optional resource quota. Derived from the source repo's most-reused module; namespace owners are now generic RBAC group subjects, not hard-coded people.
+Kubernetes namespace with baseline RBAC (editor groups bound to the built-in `edit` ClusterRole) and an optional resource quota. Namespace owners are generic RBAC group subjects, not hard-coded people.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

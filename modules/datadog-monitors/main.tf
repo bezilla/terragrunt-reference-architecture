@@ -1,7 +1,7 @@
 # Datadog monitors as data.
 #
-# The source system had eleven separate monitor modules (db health, redis health, CDN basics, SSL
-# expiry, APM error rate, log ingest, service replica health, synthetic availability, ...), each a
+# A module per monitor (db health, redis health, CDN basics, SSL expiry, APM error rate, log
+# ingest, service replica health, synthetic availability, ...) is a common shape, each a near-exact
 # copy of the same datadog_monitor scaffolding with different thresholds and queries. They collapse
 # cleanly into one factory that takes a map of monitor definitions: environments and services
 # differ by data, not by forked modules.

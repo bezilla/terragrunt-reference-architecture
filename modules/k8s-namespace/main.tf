@@ -1,8 +1,7 @@
 # Kubernetes namespace with baseline RBAC and an optional resource quota.
 #
-# Derived from the most-reused module in the source repo (it was instantiated 19 times). The one
-# substantive change: owners were a hard-coded list of individual email addresses; here they are a
-# variable of RBAC group subjects with generic defaults, so no person is baked into the module.
+# Namespace owners are a variable of RBAC group subjects with generic defaults, not a hard-coded
+# list of individual email addresses, so no person is baked into the module.
 
 resource "kubernetes_namespace" "this" {
   metadata {

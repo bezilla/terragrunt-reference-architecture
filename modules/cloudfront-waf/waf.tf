@@ -2,7 +2,7 @@
 #
 # A stack of AWS-managed rule groups plus a rate-based rule. The managed groups cover the OWASP
 # common set, known-bad inputs, and IP reputation; the rate rule caps per-IP request volume. This
-# replaces the source system's hand-maintained reputation-list Lambda with managed rules.
+# uses AWS-managed rules in place of a hand-maintained reputation-list Lambda.
 
 resource "aws_wafv2_web_acl" "this" {
   provider = aws.us_east_1

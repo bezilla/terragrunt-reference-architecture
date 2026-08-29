@@ -1,8 +1,8 @@
 # GitHub Actions -> AWS via OIDC.
 #
-# This is the replacement for the source system's long-lived aws_iam_access_key resources: no
-# static credentials anywhere, short-lived tokens minted per workflow run, and trust scoped to
-# specific repositories and refs via the sub claim. See ADR / README.
+# The keyless alternative to long-lived aws_iam_access_key resources: no static credentials
+# anywhere, short-lived tokens minted per workflow run, and trust scoped to specific repositories
+# and refs via the sub claim. See ADR / README.
 
 data "aws_iam_openid_connect_provider" "existing" {
   count = var.create_oidc_provider ? 0 : 1

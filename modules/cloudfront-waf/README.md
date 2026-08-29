@@ -1,6 +1,6 @@
 # cloudfront-waf
 
-CloudFront distribution fronted by a WAFv2 web ACL (AWS managed rule groups + a per-IP rate limit). TLS pinned to TLSv1.2_2021, HTTP redirected to HTTPS, supports both custom (ALB) and S3-with-OAC origins. Replaces the source system's hand-maintained reputation-list Lambda with AWS managed rules. The WAF web ACL is created in us-east-1 via a required aliased provider (`aws.us_east_1`). Multi-vendor edge is discussed in an ADR rather than shipped.
+CloudFront distribution fronted by a WAFv2 web ACL (AWS managed rule groups + a per-IP rate limit). TLS pinned to TLSv1.2_2021, HTTP redirected to HTTPS, supports both custom (ALB) and S3-with-OAC origins. Uses AWS managed rules in place of a hand-maintained reputation-list Lambda. The WAF web ACL is created in us-east-1 via a required aliased provider (`aws.us_east_1`). Multi-vendor edge is discussed in an ADR rather than shipped.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

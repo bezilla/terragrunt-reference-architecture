@@ -1,8 +1,8 @@
 # EKS managed node group.
 #
-# Managed node groups only. The system this was derived from carried three worker generations at
-# once (self-managed ASGs, managed node groups, and Spot.io Ocean); consolidating on managed node
-# groups — and the reasoning for when the others earn their keep — is written up in ADR-0006.
+# Managed node groups only. Clusters often accumulate several worker mechanisms at once (self-
+# managed ASGs, managed node groups, third-party spot controllers); consolidating on managed node
+# groups — and when the others earn their keep — is written up in ADR-0006.
 #
 # A launch template is used even for the "default" case so that root-volume encryption and IMDSv2
 # are enforced rather than left to the node-group defaults.

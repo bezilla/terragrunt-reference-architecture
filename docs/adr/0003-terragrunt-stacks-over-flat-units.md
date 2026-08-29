@@ -3,11 +3,11 @@
 Status: Accepted
 
 ## Context
-The source system defined each environment as a directory tree of ~70 hand-copied
-`terragrunt.hcl` units. Environments drifted (units present in one but not another), and a change
-to a shared pattern meant editing dozens of files. Terragrunt Stacks (`terragrunt.stack.hcl`,
-GA in Terragrunt 1.0+) let one stack file instantiate reusable *catalog units* with
-per-environment `values`, and supersede the older `_envcommon` include pattern.
+Defining each environment as its own tree of hand-copied `terragrunt.hcl` units leads to drift
+(units present in one environment but not another), and a change to a shared pattern means editing
+dozens of files. Terragrunt Stacks (`terragrunt.stack.hcl`, GA in Terragrunt 1.0+) let one stack
+file instantiate reusable *catalog units* with per-environment `values`, and supersede the older
+`_envcommon` include pattern.
 
 ## Decision
 Express each environment as a single `terragrunt.stack.hcl` that instantiates units from

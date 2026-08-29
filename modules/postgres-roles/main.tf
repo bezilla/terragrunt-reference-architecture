@@ -1,6 +1,6 @@
 # In-database roles, logical databases, and credentials on a shared Aurora cluster.
 #
-# This is the most distinctive pattern carried over from the source system: rather than a
+# A shared-cluster, many-databases pattern: rather than a
 # separate RDS cluster per application, one Aurora cluster hosts many logical databases, each
 # owned by its own PostgreSQL role with a generated password. Credentials are written to SSM
 # Parameter Store (SecureString) for applications to read at deploy time.

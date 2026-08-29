@@ -4,9 +4,9 @@
 # visible: the cluster IAM role, the control-plane log group, the cluster itself, the IAM OIDC
 # provider that backs IRSA, and access entries.
 #
-# Two deliberately-modern choices vs. the source this was derived from:
+# Two deliberately-modern choices worth calling out:
 #   1. The OIDC provider thumbprint comes from the tls_certificate data source, not a shell-out to
-#      `openssl` (the original had a bin/oidc_provider_thumbprint.sh).
+#      `openssl`.
 #   2. Cluster access is granted with EKS *access entries*, not the legacy aws-auth ConfigMap.
 
 data "aws_iam_policy_document" "cluster_assume_role" {

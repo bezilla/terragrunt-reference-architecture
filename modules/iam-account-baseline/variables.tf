@@ -1,8 +1,8 @@
 variable "users" {
   description = <<-EOT
-    Human IAM users to manage, keyed by username, each with the groups they belong to. This
-    replaces the source system's existing_users.tf, which hard-coded individuals' names and email
-    addresses as resource labels — here users are pure data with illustrative example values.
+    Human IAM users to manage, keyed by username, each with the groups they belong to. Users are
+    pure data with illustrative example values — no individual's name or email is baked into the
+    module as a resource label.
 
     Note: these users have NO access keys and NO console password set by this module. Access is via
     assuming roles (console federation or the CLI), never long-lived keys.

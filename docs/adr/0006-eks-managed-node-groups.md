@@ -3,9 +3,9 @@
 Status: Accepted
 
 ## Context
-The source system carried three worker generations simultaneously: self-managed ASG workers
-(bootstrap templates + `cloudposse/eks-workers`), EKS managed node groups, and Spot.io Ocean for
-spot bin-packing. Three ways to run nodes is two too many for a reference.
+Clusters commonly accumulate multiple worker mechanisms over time — self-managed ASGs, managed
+node groups, third-party spot controllers — and three ways to run nodes is two too many for a
+reference.
 
 ## Decision
 Provide one node module: `eks-managed-node-group`, using EKS managed node groups with a launch

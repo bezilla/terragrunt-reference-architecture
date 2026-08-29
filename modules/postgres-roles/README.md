@@ -1,6 +1,6 @@
 # postgres-roles
 
-In-database roles, logical databases, and generated credentials on a **shared** Aurora cluster — one cluster hosting many application databases, each with its own owning role and a generated password stored in SSM Parameter Store (SecureString). Uses the `cyrilgdn/postgresql` provider (configured by the caller). The most distinctive data pattern carried over from the source system.
+In-database roles, logical databases, and generated credentials on a **shared** Aurora cluster — one cluster hosting many application databases, each with its own owning role and a generated password stored in SSM Parameter Store (SecureString). Uses the `cyrilgdn/postgresql` provider (configured by the caller). A shared-cluster, many-databases data pattern.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

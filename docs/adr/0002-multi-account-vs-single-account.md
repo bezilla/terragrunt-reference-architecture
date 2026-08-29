@@ -3,11 +3,10 @@
 Status: Accepted
 
 ## Context
-The production system this repo was derived from ran prod, staging, and sandbox as prefixes inside
-a *single* AWS account, separated by VPC and resource naming. That is a common and inexpensive
-starting point, but it shares an IAM trust boundary, service quotas, and blast radius across
-environments, and it makes SCP-based guardrails ("non-prod may never touch prod") impossible to
-express.
+Many teams start with all environments in a single AWS account, separated by VPC and resource
+naming — inexpensive and a common starting point, but it shares one IAM trust boundary, service
+quotas, and blast radius across environments, and it makes SCP-based guardrails ("non-prod may
+never touch prod") impossible to express.
 
 ## Decision
 Model three accounts — `management` (state backend, GitHub OIDC provider, org-wide IAM), `staging`,

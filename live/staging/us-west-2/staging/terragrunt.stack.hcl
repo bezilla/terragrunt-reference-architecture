@@ -1,8 +1,8 @@
 # Staging workload stack.
 #
 # The full application platform for one environment, expressed once. prod/ instantiates the same
-# catalog units with production-scaled values — this is the DRY win over the source system, where
-# each environment was ~70 hand-copied unit directories. Run `terragrunt stack generate` then
+# catalog units with production-scaled values — the DRY payoff over hand-copying a unit directory
+# per component into every environment. Run `terragrunt stack generate` then
 # `terragrunt run --all <cmd>` from here (or `make plan ENV=staging`).
 
 unit "vpc" {

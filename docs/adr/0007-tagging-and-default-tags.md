@@ -3,9 +3,9 @@
 Status: Accepted
 
 ## Context
-The source system hand-rolled a `tags` map in nearly every module and threaded it through every
-resource, with predictable inconsistency. The AWS provider's `default_tags` applies a tag set to
-every taggable resource created by that provider.
+Threading a hand-rolled `tags` map through every module and resource is a common source of tag
+inconsistency. The AWS provider's `default_tags` applies a tag set to every taggable resource
+created by that provider.
 
 ## Decision
 Apply baseline tags (`Namespace`, `Environment`, `ManagedBy`) once, in the generated provider in
