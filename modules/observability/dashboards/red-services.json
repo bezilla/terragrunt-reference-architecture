@@ -1,0 +1,20 @@
+{
+  "uid": "red-services",
+  "title": "RED — Services",
+  "tags": ["red", "observability"],
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "namespace", "type": "query", "datasource": "Prometheus", "label": "namespace", "includeAll": true, "multi": false, "query": "label_values(service:request_rate:rate5m, service_namespace)", "refresh": 2 },
+      { "name": "service", "type": "query", "datasource": "Prometheus", "label": "service", "includeAll": true, "multi": true, "query": "label_values(service:request_rate:rate5m{service_namespace=\"$namespace\"}, service_name)", "refresh": 2 }
+    ]
+  },
+  "panels": [
+    { "id": 1, "title": "Rate — requests/sec", "type": "timeseries", "datasource": "Prometheus", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 }, "targets": [ { "expr": "sum by (service_name) (service:request_rate:rate5m{service_namespace=\"$namespace\", service_name=~\"$service\"})", "legendFormat": "{{service_name}}" } ] },
+    { "id": 2, "title": "Errors — 5xx ratio", "type": "timeseries", "datasource": "Prometheus", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 }, "fieldConfig": { "defaults": { "unit": "percentunit" } }, "targets": [ { "expr": "service:error_ratio:rate5m{service_namespace=\"$namespace\", service_name=~\"$service\"}", "legendFormat": "{{service_name}}" } ] },
+    { "id": 3, "title": "Duration — p99 seconds", "type": "timeseries", "datasource": "Prometheus", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 }, "fieldConfig": { "defaults": { "unit": "s" } }, "targets": [ { "expr": "service:latency_p99:5m{service_namespace=\"$namespace\", service_name=~\"$service\"}", "legendFormat": "{{service_name}}" } ] }
+  ]
+}
