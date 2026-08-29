@@ -37,7 +37,7 @@ jobs:
     outputs:
       stacks: ${{ steps.detect.outputs.stacks }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - id: detect
         name: Detect changed stacks
@@ -68,7 +68,7 @@ jobs:
       matrix:
         stack: ${{ fromJSON(needs.changed.outputs.stacks) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v2
 
       - id: guard
