@@ -124,7 +124,7 @@ jobs:
 
       - name: Post plan comment
         if: steps.guard.outputs.enabled == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
