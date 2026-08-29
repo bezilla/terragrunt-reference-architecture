@@ -174,6 +174,10 @@ To adopt: run the `iam-github-oidc` module, set the two role ARNs as repository 
 create the three Environments. The exact IAM trust policy is documented at the top of
 [`plan.yml`](.github/workflows/plan.yml). No long-lived AWS keys are used anywhere.
 
+## Related
+
+- [capsize](https://github.com/bezilla/capsize) — a read-only Kubernetes CLI that scores cost waste and blast radius together, for the kind of EKS clusters this architecture provisions.
+
 ## License
 
 [Apache 2.0](LICENSE).
