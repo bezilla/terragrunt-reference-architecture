@@ -124,6 +124,7 @@ Each links to its ADR:
 - [Managed node groups](docs/adr/0006-eks-managed-node-groups.md) — one worker strategy, not three.
 - [Tagging via default_tags](docs/adr/0007-tagging-and-default-tags.md) — baseline tags once, in the provider.
 - [Deploy pipeline](docs/adr/0008-deploy-pipeline-apply-on-merge.md) — apply on merge, gated by a prod environment reviewer.
+- [Observability & the OTel collector](docs/adr/0009-otel-collector-and-optional-kafka-bus.md) — the collector as the cloud-portability seam; Kafka only above a stated bar.
 
 ### What this deliberately does not do
 

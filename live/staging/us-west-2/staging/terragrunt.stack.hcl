@@ -85,3 +85,12 @@ unit "monitors" {
   path   = "datadog-monitors"
   values = {}
 }
+
+unit "observability" {
+  source = "${get_repo_root()}/catalog/units/observability"
+  path   = "observability"
+  values = {
+    slo_target = 0.99
+    kafka      = { enabled = false }
+  }
+}
