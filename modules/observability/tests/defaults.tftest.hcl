@@ -56,6 +56,25 @@ run "the_seam_swaps_the_backend_by_config_only" {
   }
 }
 
+run "trace_backend_is_an_exporter_swap" {
+  command = plan
+  variables {
+    traces_pipeline_exporters = ["otlp/jaeger"]
+  }
+  assert {
+    condition     = can(regex("jaeger-collector", kubernetes_config_map_v1.gateway.data["config.yaml"]))
+    error_message = "Selecting otlp/jaeger in traces_pipeline_exporters must point traces at Jaeger's OTLP endpoint."
+  }
+  assert {
+    condition     = !can(regex("\n  jaeger:", kubernetes_config_map_v1.gateway.data["config.yaml"]))
+    error_message = "Jaeger must be reached over OTLP; the removed `jaeger` exporter must not appear."
+  }
+  assert {
+    condition     = can(regex("otlp/tempo", kubernetes_config_map_v1.gateway.data["config.yaml"]))
+    error_message = "Adding Jaeger must not remove Tempo: both stay available as selectable backends."
+  }
+}
+
 run "gateway_is_hardened" {
   command = plan
   assert {

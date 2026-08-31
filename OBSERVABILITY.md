@@ -30,7 +30,7 @@ and one processor chain; they differ only in where they land.
 | Signal | Receiver | Processors (in order) | Default exporter |
 | --- | --- | --- | --- |
 | Metrics | `otlp` | `memory_limiter` → `resource` → `batch` | `prometheusremotewrite` |
-| Traces | `otlp` | `memory_limiter` → `resource` → `batch` | `otlp/tempo` |
+| Traces | `otlp` | `memory_limiter` → `resource` → `batch` | `otlp/tempo` (or `otlp/jaeger`) |
 | Logs | `otlp` | `memory_limiter` → `resource` → `batch` | `otlphttp/loki` |
 
 The `otlp` receiver listens on gRPC `0.0.0.0:4317` and HTTP `0.0.0.0:4318`. What each processor is
@@ -61,6 +61,26 @@ peers) select which of them each signal fans out to. Retargeting a backend — i
 The backend definitions do not change between modes; only the hop does. The module wires collectors
 to an **existing** Kafka — it provisions no broker. `output "transport_mode"` reports which path is
 active.
+
+### Choosing a trace backend
+
+The seam is easiest to see on traces, because both supported stores speak the same protocol:
+
+| Trace backend | Exporter | Select it with |
+| --- | --- | --- |
+| Tempo (reference default) | `otlp/tempo` | `traces_pipeline_exporters = ["otlp/tempo"]` |
+| Jaeger | `otlp/jaeger` | `traces_pipeline_exporters = ["otlp/jaeger"]` |
+
+Both ship in the `var.exporters` default map, so moving traces from Tempo to Jaeger is **one
+variable**: the `otlp` receiver, the processor chain, the persistent queue, the Kafka wiring, and —
+most importantly — the applications are byte-for-byte identical either way. Instrumentation never
+learns which trace store it is talking to. That is the whole point of the seam, and
+`tests/defaults.tftest.hcl` asserts it.
+
+Jaeger is reached over **OTLP**, which it ingests natively on port 4317. The collector's old
+`jaeger` exporter was removed upstream and is deliberately not used here. An exporter that no
+pipeline references is inert — the collector starts cleanly with it declared — so shipping both
+costs a Tempo shop nothing. Point either at your own endpoint by overriding `var.exporters`.
 
 ## Durability: why the direct path is enough
 

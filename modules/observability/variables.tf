@@ -51,12 +51,23 @@ variable "exporters" {
     protects every signal. To target a managed backend, replace these (e.g. "awsemf",
     "googlecloud", "otlphttp" to a vendor endpoint) and update the pipeline lists below —
     receivers, processors, and the Kafka wiring are untouched.
+
+    Trace backends are an exporter swap, not a redesign: "otlp/tempo" is the reference default
+    and "otlp/jaeger" ships alongside it for a Jaeger shop. Both speak OTLP, so the receiver,
+    the processor chain, and the applications are identical either way — select one by naming
+    it in var.traces_pipeline_exporters.
   EOT
   type        = any
   default = {
     prometheusremotewrite = { endpoint = "http://prometheus.observability.svc.cluster.local:9090/api/v1/write" }
     "otlp/tempo"          = { endpoint = "tempo.observability.svc.cluster.local:4317", tls = { insecure = true } }
     "otlphttp/loki"       = { endpoint = "http://loki.observability.svc.cluster.local:3100/otlp" }
+    # Jaeger ingests OTLP natively on 4317, so the portable `otlp` exporter targets it directly —
+    # the old `jaeger` exporter was removed from the collector and is deliberately not used here.
+    # Defined but referenced by no pipeline, so it is inert until a consumer sets
+    # traces_pipeline_exporters = ["otlp/jaeger"]; that one variable moves traces off Tempo
+    # without editing this module or touching the applications.
+    "otlp/jaeger" = { endpoint = "jaeger-collector.observability.svc.cluster.local:4317", tls = { insecure = true } }
   }
   nullable = false
 }
@@ -69,7 +80,7 @@ variable "metrics_pipeline_exporters" {
 }
 
 variable "traces_pipeline_exporters" {
-  description = "Backend exporter names the traces signal fans out to. Part of the seam."
+  description = "Backend exporter names the traces signal fans out to (keys of var.exporters). Part of the seam: [\"otlp/tempo\"] by default, [\"otlp/jaeger\"] for a Jaeger backend."
   type        = list(string)
   default     = ["otlp/tempo"]
   nullable    = false

@@ -22,6 +22,19 @@ Moving from, say, Prometheus/Tempo/Loki to a managed backend is editing `var.exp
 three pipeline lists — not a rewrite. `tests/defaults.tftest.hcl` asserts exactly this: swapping the
 exporters variable changes the destination with no other edit.
 
+The trace backend is the clearest example. Both supported stores speak OTLP, so choosing between
+them is one variable and no application change:
+
+| Trace backend | Exporter | Select it with |
+| --- | --- | --- |
+| Tempo (reference default) | `otlp/tempo` | `traces_pipeline_exporters = ["otlp/tempo"]` |
+| Jaeger | `otlp/jaeger` | `traces_pipeline_exporters = ["otlp/jaeger"]` |
+
+Both ship in the `var.exporters` default map; an exporter no pipeline references is inert, so the
+unused one costs nothing. Jaeger is reached over **OTLP** (it ingests OTLP natively on 4317) — the
+collector's old `jaeger` exporter was removed upstream and is deliberately not used. Point
+`otlp/jaeger` at your own collector endpoint by overriding `var.exporters`.
+
 The seam has **one control surface with two modes**, not two mechanisms:
 
 - **direct (default):** the gateway exports straight to the backends, with an on-disk
@@ -40,6 +53,7 @@ The seam has **one control surface with two modes**, not two mechanisms:
 - **Grafana dashboards as code** (committed JSON, sidecar-provisioned): one RED dashboard for
   services and one USE dashboard for nodes, each templated by `$namespace`/`$service` or `$node` so
   one dashboard serves many.
+- **Trace backend as a variable:** `otlp/tempo` (default) or `otlp/jaeger`, both over OTLP.
 - **SLO burn-rate alerting** — a fast (5m∧1h) + slow (30m∧6h) multi-window burn-rate pair, scaled to
   `var.slo_target`, not a raw threshold.
 - **PagerDuty routing** by severity (Alertmanager).
@@ -103,7 +117,7 @@ No modules.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_collector_image"></a> [collector\_image](#input\_collector\_image) | OpenTelemetry Collector image (contrib distribution for the exporter/receiver set). | `string` | `"otel/opentelemetry-collector-contrib:0.115.0"` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name, stamped onto every telemetry record as deployment.environment for consistent filtering. | `string` | n/a | yes |
-| <a name="input_exporters"></a> [exporters](#input\_exporters) | Backend exporter definitions, keyed by exporter name. THIS IS THE SEAM. Defaults keep<br/>everything in-cluster and portable (Prometheus remote-write for metrics, OTLP to Tempo<br/>for traces, OTLP/HTTP to Loki for logs) and are push-based so the persistent queue<br/>protects every signal. To target a managed backend, replace these (e.g. "awsemf",<br/>"googlecloud", "otlphttp" to a vendor endpoint) and update the pipeline lists below —<br/>receivers, processors, and the Kafka wiring are untouched. | `any` | <pre>{<br/>  "otlp/tempo": {<br/>    "endpoint": "tempo.observability.svc.cluster.local:4317",<br/>    "tls": {<br/>      "insecure": true<br/>    }<br/>  },<br/>  "otlphttp/loki": {<br/>    "endpoint": "http://loki.observability.svc.cluster.local:3100/otlp"<br/>  },<br/>  "prometheusremotewrite": {<br/>    "endpoint": "http://prometheus.observability.svc.cluster.local:9090/api/v1/write"<br/>  }<br/>}</pre> | no |
+| <a name="input_exporters"></a> [exporters](#input\_exporters) | Backend exporter definitions, keyed by exporter name. THIS IS THE SEAM. Defaults keep<br/>everything in-cluster and portable (Prometheus remote-write for metrics, OTLP to Tempo<br/>for traces, OTLP/HTTP to Loki for logs) and are push-based so the persistent queue<br/>protects every signal. To target a managed backend, replace these (e.g. "awsemf",<br/>"googlecloud", "otlphttp" to a vendor endpoint) and update the pipeline lists below —<br/>receivers, processors, and the Kafka wiring are untouched.<br/><br/>Trace backends are an exporter swap, not a redesign: "otlp/tempo" is the reference default<br/>and "otlp/jaeger" ships alongside it for a Jaeger shop. Both speak OTLP, so the receiver,<br/>the processor chain, and the applications are identical either way — select one by naming<br/>it in var.traces\_pipeline\_exporters. | `any` | <pre>{<br/>  "otlp/jaeger": {<br/>    "endpoint": "jaeger-collector.observability.svc.cluster.local:4317",<br/>    "tls": {<br/>      "insecure": true<br/>    }<br/>  },<br/>  "otlp/tempo": {<br/>    "endpoint": "tempo.observability.svc.cluster.local:4317",<br/>    "tls": {<br/>      "insecure": true<br/>    }<br/>  },<br/>  "otlphttp/loki": {<br/>    "endpoint": "http://loki.observability.svc.cluster.local:3100/otlp"<br/>  },<br/>  "prometheusremotewrite": {<br/>    "endpoint": "http://prometheus.observability.svc.cluster.local:9090/api/v1/write"<br/>  }<br/>}</pre> | no |
 | <a name="input_gateway_replicas"></a> [gateway\_replicas](#input\_gateway\_replicas) | Number of gateway-collector replicas (the tier applications send OTLP to). | `number` | `2` | no |
 | <a name="input_kafka"></a> [kafka](#input\_kafka) | Optional Kafka transport between the gateway collector and the backends. DEFAULT OFF: when<br/>disabled the module provisions no broker and exports directly with an on-disk persistent<br/>queue. Enable it only when the direct path is genuinely insufficient — bursty producers that<br/>outrun a sink, an unreliable or slow backend, or a multi-cloud dual-read during migration<br/>(see docs/adr/0009). The module wires collectors to an EXISTING Kafka; it does not deploy<br/>brokers. One topic per signal. When enabled, the bus is itself monitored (consumer lag, ISR,<br/>partition skew) — a blind telemetry bus is worse than none. | <pre>object({<br/>    enabled           = optional(bool, false)<br/>    brokers           = optional(list(string), [])<br/>    consumer_replicas = optional(number, 2)<br/>    topics = optional(object({<br/>      metrics = optional(string, "otel-metrics")<br/>      traces  = optional(string, "otel-traces")<br/>      logs    = optional(string, "otel-logs")<br/>    }), {})<br/>    consumer_group = optional(string, "otel-consumers")<br/>    max_lag_alert  = optional(number, 50000) # records; alert when a consumer group falls this far behind<br/>  })</pre> | `{}` | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Extra labels merged onto every resource this module creates. | `map(string)` | `{}` | no |
@@ -113,7 +127,7 @@ No modules.
 | <a name="input_pagerduty_routing_key"></a> [pagerduty\_routing\_key](#input\_pagerduty\_routing\_key) | PagerDuty Events API v2 routing key for Alertmanager. Empty by default; supply via a secret/environment, never commit it. | `string` | `""` | no |
 | <a name="input_service_namespace"></a> [service\_namespace](#input\_service\_namespace) | Logical service namespace stamped onto telemetry as service.namespace (e.g. the platform/team name). | `string` | `"platform"` | no |
 | <a name="input_slo_target"></a> [slo\_target](#input\_slo\_target) | Availability SLO as a fraction (e.g. 0.999 = three nines). Drives the error-budget burn-rate thresholds. | `number` | `0.999` | no |
-| <a name="input_traces_pipeline_exporters"></a> [traces\_pipeline\_exporters](#input\_traces\_pipeline\_exporters) | Backend exporter names the traces signal fans out to. Part of the seam. | `list(string)` | <pre>[<br/>  "otlp/tempo"<br/>]</pre> | no |
+| <a name="input_traces_pipeline_exporters"></a> [traces\_pipeline\_exporters](#input\_traces\_pipeline\_exporters) | Backend exporter names the traces signal fans out to (keys of var.exporters). Part of the seam: ["otlp/tempo"] by default, ["otlp/jaeger"] for a Jaeger backend. | `list(string)` | <pre>[<br/>  "otlp/tempo"<br/>]</pre> | no |
 
 ## Outputs
 
