@@ -93,6 +93,47 @@ variable "logs_pipeline_exporters" {
   nullable    = false
 }
 
+# ─── GRAFANA DATASOURCES ──────────────────────────────────────────────────────
+# Exemplars are the metric→trace pivot, and a pivot needs a real datasource uid to land on.
+# The dashboards referenced datasources by name and nothing in this repo provisioned them, so
+# the exemplar link had no target. These provision Prometheus + the selected trace backend as
+# code, through the same Grafana sidecar that already picks up the dashboards.
+variable "grafana_datasources" {
+  description = <<-EOT
+    Grafana datasource provisioning, delivered as a ConfigMap labelled grafana_datasource=1 for
+    the kube-prometheus-stack Grafana sidecar (the same mechanism as the dashboards). This exists
+    so the exemplar pivot has a real uid to target instead of a fabricated one.
+
+    The trace datasource FOLLOWS THE SEAM: whichever backend var.traces_pipeline_exporters selects
+    is the one provisioned and the one exemplars pivot into — Tempo by default, Jaeger when
+    traces_pipeline_exporters = ["otlp/jaeger"]. Point traces at a vendor endpoint instead and no
+    trace datasource is provisioned and no exemplar destination is declared, rather than shipping
+    a link to a uid that does not exist.
+
+    NOTE the URLs here are QUERY endpoints (what Grafana reads from), which are not the OTLP
+    ingest endpoints in var.exporters — Tempo queries on 3200 and Jaeger on 16686 while both
+    ingest on 4317.
+
+    CONFLICT: if your Grafana umbrella chart already provisions a datasource named "Prometheus",
+    set enabled = false here (or rename via prometheus_name/prometheus_uid) so the two do not
+    fight over the same name.
+  EOT
+  type = object({
+    enabled         = optional(bool, true)
+    prometheus_name = optional(string, "Prometheus")
+    prometheus_uid  = optional(string, "prometheus")
+    prometheus_url  = optional(string, "http://prometheus.observability.svc.cluster.local:9090")
+    tempo_url       = optional(string, "http://tempo.observability.svc.cluster.local:3200")
+    jaeger_url      = optional(string, "http://jaeger-query.observability.svc.cluster.local:16686")
+    # Label the collector attaches the trace id to on each exemplar. "trace_id" is not a choice
+    # this module makes: it is prometheustranslator.ExemplarTraceIDKey in the collector's
+    # remote-write translator. Overridable only for a non-OTel producer.
+    exemplar_trace_id_label = optional(string, "trace_id")
+  })
+  default  = {}
+  nullable = false
+}
+
 variable "kafka" {
   description = <<-EOT
     Optional Kafka transport between the gateway collector and the backends. DEFAULT OFF: when

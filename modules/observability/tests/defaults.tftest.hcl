@@ -127,6 +127,88 @@ run "slo_alerting_is_multi_window_burn_rate" {
   }
 }
 
+run "exemplar_pivot_has_a_real_datasource_target" {
+  command = plan
+
+  assert {
+    condition     = kubernetes_config_map_v1.datasources[0].metadata[0].labels["grafana_datasource"] == "1"
+    error_message = "Datasources must be provisioned as code through the Grafana sidecar, not click-configured."
+  }
+  assert {
+    condition     = can(regex("exemplarTraceIdDestinations", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"]))
+    error_message = "The Prometheus datasource must declare an exemplar destination, or the metric to trace pivot is dead."
+  }
+  assert {
+    condition = alltrue([
+      can(regex("\"datasourceUid\": \"tempo\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"])),
+      can(regex("\"type\": \"tempo\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"])),
+    ])
+    error_message = "By default traces go to Tempo, so the exemplar pivot must target a provisioned Tempo datasource."
+  }
+  assert {
+    condition     = can(regex("\"name\": \"trace_id\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"]))
+    error_message = "The exemplar destination must key on trace_id, the label the collector's remote-write translator attaches."
+  }
+}
+
+run "exemplar_pivot_follows_the_trace_backend" {
+  command = plan
+  variables {
+    traces_pipeline_exporters = ["otlp/jaeger"]
+  }
+
+  assert {
+    condition = alltrue([
+      can(regex("\"datasourceUid\": \"jaeger\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"])),
+      can(regex("\"type\": \"jaeger\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"])),
+    ])
+    error_message = "Selecting Jaeger on the seam must move the exemplar pivot to Jaeger — the backend traces are sent to is the one exemplars land in."
+  }
+  assert {
+    condition     = !can(regex("\"type\": \"tempo\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"]))
+    error_message = "Only the selected trace backend should be provisioned as a datasource."
+  }
+}
+
+run "no_exemplar_link_without_a_backend_grafana_can_query" {
+  command = plan
+  variables {
+    exporters                 = { "otlphttp/vendor" = { endpoint = "http://collector.example.com:4318" } }
+    traces_pipeline_exporters = ["otlphttp/vendor"]
+    logs_pipeline_exporters   = ["otlphttp/vendor"]
+  }
+
+  assert {
+    condition     = can(regex("\"exemplarTraceIdDestinations\": \\[\\]", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"]))
+    error_message = "With traces at a vendor endpoint there is no Grafana trace datasource, so no exemplar destination may be declared — better an empty list than a link to a uid that does not resolve."
+  }
+}
+
+run "dashboards_are_templated_and_carry_exemplars" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      can(regex("\"name\": \"namespace\"", kubernetes_config_map_v1.dashboard_red.data["red-services.json"])),
+      can(regex("\"name\": \"service\"", kubernetes_config_map_v1.dashboard_red.data["red-services.json"])),
+      can(regex("service_name=~..\\$service", kubernetes_config_map_v1.dashboard_red.data["red-services.json"])),
+    ])
+    error_message = "RED must stay templated and the variables must actually filter the queries — one dashboard for every service, not forty snowflakes."
+  }
+  assert {
+    condition     = can(regex("\"exemplar\": true", kubernetes_config_map_v1.dashboard_red.data["red-services.json"]))
+    error_message = "RED must have an exemplar-enabled latency target."
+  }
+  assert {
+    condition     = can(regex("http_server_request_duration_seconds_bucket", kubernetes_config_map_v1.dashboard_red.data["red-services.json"]))
+    error_message = "The exemplar panel must query the raw histogram: exemplars do not survive recording-rule evaluation."
+  }
+  assert {
+    condition     = can(regex("service:latency_p99:5m", kubernetes_config_map_v1.dashboard_red.data["red-services.json"]))
+    error_message = "The precomputed p99 panel must survive — the exemplar panel is an addition, not a replacement."
+  }
+}
+
 run "dashboards_and_routing" {
   command = plan
   assert {

@@ -179,9 +179,66 @@ service or node:
 
 - **RED — Services** (`dashboards/red-services.json`, uid `red-services`) — variables `$namespace`
   and `$service`; panels *Rate — requests/sec*, *Errors — 5xx ratio*, *Duration — p99 seconds*, each
-  reading the recording rules above.
+  reading the recording rules above, plus *Duration — p99 with exemplars (raw histogram)* for the
+  trace pivot below.
 - **USE — Nodes** (`dashboards/use-nodes.json`, uid `use-nodes`) — variable `$node`; panels
   *Utilization — CPU*, *Saturation — memory*, *Saturation — run-queue (load/CPU)*.
+
+### Templating
+
+Neither dashboard hardcodes a service or node. `$namespace` and `$service` on RED are `query`
+variables resolved with `label_values()` against the recording rules — `$service` is chained off
+`$namespace` and is multi-select — and every panel query filters on them
+(`{service_namespace="$namespace", service_name=~"$service"}`). USE does the same with `$node`.
+That is the point: one RED dashboard for every service, not one per service.
+
+There is deliberately **no `$environment` variable.** The recording rules aggregate
+`sum by (service_name, service_namespace)`, so the recorded series carry exactly those two labels
+and an `$environment` dropdown would come back empty. Environment is a *deployment* dimension
+here — one module instance per environment, stamped by the `resource` processor as
+`deployment.environment` — not a label on the recorded series. Adding it as a working variable
+means changing the `by` clauses in `prometheus.tf`, which also changes what the burn-rate alerts
+group by. It is not a dashboard-only change, so it is not made here.
+
+### Exemplars: the metric→trace pivot
+
+Source: `modules/observability/datasources.tf`.
+
+An exemplar is a trace id stapled to a histogram sample. It is what turns "p99 is 2.3s" into
+"here is the actual request that took 2.3s". The chain, end to end:
+
+1. The application's OTLP histogram carries exemplars (the SDK samples them from spans in context).
+2. The collector's `prometheusremotewrite` exporter translates them to remote-write exemplars and
+   attaches the trace id under the label `trace_id`. This needs **no configuration** — the
+   translator does it whenever exemplars are present, so there is no flag for it in `var.exporters`.
+3. Prometheus stores them — this requires `--enable-feature=exemplar-storage` on the Prometheus
+   server, which this module does not own (it configures an assumed-existing Prometheus).
+4. Grafana renders them on the panel and links each one to a trace datasource.
+
+Step 4 is why `datasources.tf` exists. Dashboards referenced datasources by name and nothing in
+this repo provisioned any, so an exemplar link had nowhere to land. Datasources now ship as code
+through the same Grafana sidecar the dashboards use (`grafana_datasource=1`), and the Prometheus
+datasource declares `exemplarTraceIdDestinations` keyed on `trace_id`.
+
+**The trace datasource follows the export seam.** Whichever backend `var.traces_pipeline_exporters`
+selects is the one provisioned and the one exemplars pivot into — Tempo by default, Jaeger when you
+set `["otlp/jaeger"]`. Point traces at a vendor OTLP endpoint instead and no trace datasource is
+provisioned and no exemplar destination is declared, rather than shipping a link to a UID that does
+not resolve. The module tests assert all three cases.
+
+**Why a fourth panel instead of a flag on the third.** Exemplars live on the raw histogram buckets
+and do not survive rule evaluation, so `service:latency_p99:5m` — a recording-rule output — can
+never carry them, and setting `"exemplar": true` on that panel would do nothing. The new panel runs
+`histogram_quantile` over `http_server_request_duration_seconds_bucket` directly, which is the more
+expensive query and exactly what the recording rule exists to avoid. Both panels stay: the cheap
+precomputed one for the SLI you watch, the raw one for the pivot you take when it moves. Click a
+diamond on it and you land on that request's trace.
+
+Note the datasource URLs are **query** endpoints, not the OTLP ingest endpoints in `var.exporters`:
+Tempo answers queries on 3200 and Jaeger on 16686 while both ingest on 4317. If your Grafana
+umbrella chart already provisions a datasource named `Prometheus`, set
+`grafana_datasources.enabled = false` or rename via `prometheus_name`/`prometheus_uid` so the two
+do not fight.
 
 ### Rendered dashboards
 
@@ -189,14 +246,17 @@ Both images below are real Grafana renders of the **committed dashboard JSON in 
 same files `grafana.tf` provisions — driven by synthetic telemetry. Nothing in them is mocked up:
 Prometheus evaluated the recording rules from `prometheus.tf` over generated
 `http_server_request_duration_seconds_*` and node-exporter series, and the panels drew whatever
-those rules produced.
+those rules produced. The RED render shows the three recording-rule panels; it was captured before
+the exemplar panel was added and does not include it, because the synthetic feed emits metrics and
+no traces — that panel would draw a bare duplicate of the p99 line with no exemplars on it, which
+is worse than not showing it.
 
 ![RED — Services dashboard: three panels showing request rate, 5xx error ratio, and p99 duration for four services over six hours](docs/images/grafana-red-services.png)
 
-*`RED — Services`, rendered from `dashboards/red-services.json` against synthetic data. The
-`checkout-api` incident is one event seen twice: the 5xx ratio climbs to ~8.8% while p99 latency
-rises with it, which is exactly the correlation the burn-rate alerts key on. Series are the
-recording rules — `service:request_rate:rate5m`, `service:error_ratio:rate5m`,
+*`RED — Services`, rendered from the three recording-rule panels of `dashboards/red-services.json`
+against synthetic data. The `checkout-api` incident is one event seen twice: the 5xx ratio climbs
+to ~8.8% while p99 latency rises with it, which is exactly the correlation the burn-rate alerts key
+on. Series are the recording rules — `service:request_rate:rate5m`, `service:error_ratio:rate5m`,
 `service:latency_p99:5m` — not raw queries.*
 
 ![USE — Nodes dashboard: three panels showing CPU utilization, memory saturation, and run-queue saturation for three nodes over six hours](docs/images/grafana-use-nodes.png)
