@@ -183,26 +183,38 @@ service or node:
 - **USE — Nodes** (`dashboards/use-nodes.json`, uid `use-nodes`) — variable `$node`; panels
   *Utilization — CPU*, *Saturation — memory*, *Saturation — run-queue (load/CPU)*.
 
-### On rendered screenshots
+### Rendered dashboards
 
-This document deliberately carries no dashboard screenshots. The dashboards are provisioned as code
-and the JSON is in the repo, which is the reviewable artifact; a rendered image could not be
-produced honestly here for two reasons:
+Both images below are real Grafana renders of the **committed dashboard JSON in this repo** — the
+same files `grafana.tf` provisions — driven by synthetic telemetry. Nothing in them is mocked up:
+Prometheus evaluated the recording rules from `prometheus.tf` over generated
+`http_server_request_duration_seconds_*` and node-exporter series, and the panels drew whatever
+those rules produced.
 
-1. **The module has no standalone runtime.** It installs neither Prometheus, Grafana, Alertmanager,
-   Tempo, nor Loki — it assumes they exist and provisions the collector and the configuration that
-   plugs into them. The repo ships no compose file or equivalent harness, so there is nothing to
-   stand up and point a browser at.
-2. **There is no error-budget-burn dashboard to capture.** Burn rate exists in this module as
-   *alerting rules* (`slo.tf`), not as a Grafana panel. The closest committed panel is
-   *Errors — 5xx ratio* on the RED dashboard, which plots `service:error_ratio:rate5m` — the SLI the
-   burn-rate alerts are built from, but not a budget-burn visualisation.
+![RED — Services dashboard: three panels showing request rate, 5xx error ratio, and p99 duration for four services over six hours](docs/images/grafana-red-services.png)
 
-Rendering the RED dashboard for real would take a Grafana instance with a Prometheus datasource, the
-recording rules from `prometheus.tf` loaded, and a synthetic workload emitting
-`http_server_request_duration_seconds_*` long enough for the 5m windows to populate. An
-error-budget-burn panel would have to be authored first and committed as a third dashboard, at which
-point it is a module change rather than a documentation one.
+*`RED — Services`, rendered from `dashboards/red-services.json` against synthetic data. The
+`checkout-api` incident is one event seen twice: the 5xx ratio climbs to ~8.8% while p99 latency
+rises with it, which is exactly the correlation the burn-rate alerts key on. Series are the
+recording rules — `service:request_rate:rate5m`, `service:error_ratio:rate5m`,
+`service:latency_p99:5m` — not raw queries.*
+
+![USE — Nodes dashboard: three panels showing CPU utilization, memory saturation, and run-queue saturation for three nodes over six hours](docs/images/grafana-use-nodes.png)
+
+*`USE — Nodes`, rendered from `dashboards/use-nodes.json` against synthetic data. Node
+`ip-10-20-3-33` shows a saturation event where run-queue ratio crosses 1.0 — more runnable threads
+than cores — while CPU utilization peaks near 76%. Series are `node:cpu_utilization:rate5m`,
+`node:memory_saturation:ratio`, and `node:load_saturation:ratio`.*
+
+The render harness is deliberately **not committed**: the module provisions configuration into an
+assumed-existing Prometheus/Grafana and installs neither, so a compose file living in this repo
+would imply a runtime that the module does not own. Reproducing the images takes a Grafana with a
+Prometheus datasource, the recording rules from `prometheus.tf` loaded, and a workload emitting the
+OTel HTTP semconv metrics for longer than the 5m rate windows.
+
+There is deliberately **no error-budget-burn panel**. Burn rate exists in this module as alerting
+rules (`slo.tf`), not as a dashboard; the closest committed panel is *Errors — 5xx ratio*, which
+plots the SLI those alerts are built from.
 
 ## What this does not do
 
