@@ -21,7 +21,7 @@ variable "service_namespace" {
 variable "collector_image" {
   description = "OpenTelemetry Collector image (contrib distribution for the exporter/receiver set)."
   type        = string
-  default     = "otel/opentelemetry-collector-contrib:0.115.0"
+  default     = "otel/opentelemetry-collector-contrib:0.115.1"
   nullable    = false
 }
 
