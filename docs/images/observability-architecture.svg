@@ -1,0 +1,265 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 940" width="1180" height="940"
+     role="img" aria-labelledby="ttl dsc">
+  <title id="ttl">Observability architecture: what this module owns and where its scope stops</title>
+  <desc id="dsc">Applications sit outside the module and emit OTLP across a labelled application
+  boundary. Inside, a gateway collector runs one receiver and one processor chain and fans three
+  signals through a variable-driven exporter seam, in which the trace exporter is an interchangeable
+  slot holding Tempo by default, or Jaeger, or a vendor endpoint. An optional Kafka bus, off by
+  default, is drawn as a dashed secondary route that leaves the gateway and rejoins the same
+  exporters. Backends are assumed present and installed by something else. Below, configuration as
+  code ships recording rules, burn-rate alerts, alert routing, dashboards and datasources, and an
+  exemplar pivots from a latency panel into the selected trace backend.</desc>
+
+  <style>
+    /* Colour carries ownership, not category:
+         own   provisioned by this module
+         ext   outside it (applications, and backends assumed present)
+         opt   optional, off by default
+         pivot the one cross-signal link, metric to trace
+       Light values are the default so the diagram stays legible even where the
+       colour-scheme query does not match the host page. Neither theme uses pure
+       black or pure white. */
+    :root{
+      --bg:#eef1f6; --panel:#fafbfd; --ink:#1f2937; --dim:#4b5563;
+      --own:#2f6fed; --ext:#5b6675; --opt:#a8570a; --pivot:#7241d6;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#141a23; --panel:#1c2531; --ink:#e6eaf1; --dim:#a7b2c2;
+        --own:#74abff; --ext:#98a3b3; --opt:#f0b357; --pivot:#c3a3ff;
+      }
+    }
+    .bg{fill:var(--bg)}
+    text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+         fill:var(--ink)}
+    .h1{font-size:24px;font-weight:700}
+    .h2{font-size:14px;fill:var(--dim)}
+    .zone{font-size:13px;font-weight:700;letter-spacing:.08em}
+    .bt{font-size:15px;font-weight:600}
+    .lbl{font-size:12.5px;fill:var(--dim)}
+    .sm{font-size:11.5px;fill:var(--dim)}
+    .edge{font-size:12px;font-weight:600}
+    .panel{fill:var(--panel)}
+    .own-s{stroke:var(--own);fill:none}
+    .own-f{fill:var(--own);fill-opacity:.07;stroke:var(--own);stroke-opacity:.5}
+    .ext-f{fill:var(--ext);fill-opacity:.08;stroke:var(--ext);stroke-opacity:.5}
+    .opt-f{fill:var(--opt);fill-opacity:.08;stroke:var(--opt);stroke-opacity:.75;stroke-dasharray:7 5}
+    .t-own{fill:var(--own)} .t-ext{fill:var(--ext)} .t-opt{fill:var(--opt)} .t-piv{fill:var(--pivot)}
+    .f-own{fill:var(--own)} .f-ext{fill:var(--ext)} .f-opt{fill:var(--opt)} .f-piv{fill:var(--pivot)}
+    .flow{stroke:var(--own);stroke-width:2;fill:none}
+    .flow-ext{stroke:var(--ext);stroke-width:2;fill:none}
+    .flow-opt{stroke:var(--opt);stroke-width:2;fill:none;stroke-dasharray:7 5}
+    .flow-piv{stroke:var(--pivot);stroke-width:2;fill:none;stroke-dasharray:3 4}
+    .bound{stroke:var(--ext);stroke-width:2;stroke-dasharray:9 7;fill:none}
+    .slot{stroke:var(--own);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+    .alt{stroke:var(--own);fill:none;stroke-dasharray:4 3;stroke-opacity:.8}
+  </style>
+
+  <defs>
+    <marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-own"/></marker>
+    <marker id="me" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-ext"/></marker>
+    <marker id="mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-opt"/></marker>
+    <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-piv"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="940" rx="10"/>
+
+  <text class="h1" x="40" y="44">Observability — what this module owns, and where it stops</text>
+  <text class="h2" x="40" y="68">modules/observability · OTLP in, configuration-as-code out</text>
+
+  <!-- ===================== APPLICATIONS ===================== -->
+  <text class="zone t-ext" x="40" y="106">APPLICATIONS</text>
+  <text class="sm" x="40" y="124">instrumented by the team that owns them</text>
+
+  <rect class="ext-f" x="40" y="140" width="185" height="58" rx="8"/>
+  <text class="bt" x="56" y="165">checkout-api</text>
+  <text class="sm" x="56" y="184">OTel SDK</text>
+
+  <rect class="ext-f" x="40" y="210" width="185" height="58" rx="8"/>
+  <text class="bt" x="56" y="235">search-api</text>
+  <text class="sm" x="56" y="254">OTel SDK</text>
+
+  <rect class="ext-f" x="40" y="280" width="185" height="58" rx="8"/>
+  <text class="bt" x="56" y="305">billing-worker</text>
+  <text class="sm" x="56" y="324">OTel SDK</text>
+
+  <text class="lbl" x="40" y="368">Not provisioned here.</text>
+  <text class="lbl" x="40" y="386">No code of theirs touched.</text>
+  <text class="lbl" x="40" y="404">OTLP is the only contract</text>
+  <text class="lbl" x="40" y="422">across this line.</text>
+
+  <path class="flow-ext" marker-end="url(#me)" d="M225 169 H262 Q276 169 276 183 V196 H300"/>
+  <path class="flow-ext" marker-end="url(#me)" d="M225 239 H300"/>
+  <path class="flow-ext" marker-end="url(#me)" d="M225 309 H262 Q276 309 276 295 V282 H300"/>
+  <text class="edge t-ext" x="236" y="232">OTLP</text>
+
+  <!-- ===================== BOUNDARY 1 ===================== -->
+  <path class="bound" d="M250 92 V664"/>
+  <g transform="rotate(-90 250 532)">
+    <text class="zone t-ext" x="250" y="532" text-anchor="middle" dy="-6">APPLICATION</text>
+    <text class="zone t-ext" x="250" y="532" text-anchor="middle" dy="12">BOUNDARY</text>
+  </g>
+
+  <!-- ===================== THE MODULE ===================== -->
+  <rect class="own-f" x="274" y="92" width="538" height="572" rx="12"/>
+  <text class="zone t-own" x="292" y="118">THIS MODULE · modules/observability</text>
+
+  <rect class="panel" x="300" y="140" width="288" height="124" rx="9"/>
+  <rect class="own-s" x="300" y="140" width="288" height="124" rx="9"/>
+  <text class="bt" x="316" y="166">otel-gateway · StatefulSet</text>
+  <text class="sm" x="316" y="188">receiver  otlp :4317 gRPC · :4318 HTTP</text>
+  <text class="sm" x="316" y="207">processors  memory_limiter → resource → batch</text>
+  <text class="sm" x="316" y="226">per-replica PVC · file_storage sending queue</text>
+  <text class="sm" x="316" y="252">one receiver · one chain · three pipelines</text>
+
+  <!-- signal fan-out -->
+  <path class="flow" marker-end="url(#mo)" d="M588 172 H602 Q616 172 616 188 V214 H634"/>
+  <text class="edge t-own" x="594" y="160">metrics</text>
+  <path class="flow" marker-end="url(#mo)" d="M588 202 H608 Q622 202 622 216 V332 H626"/>
+  <text class="edge t-own" x="580" y="316">traces</text>
+  <path class="flow" marker-end="url(#mo)" d="M588 240 H596 Q608 240 608 254 V470 H634"/>
+  <text class="edge t-own" x="580" y="462">logs</text>
+
+  <!-- ===================== THE EXPORTER SEAM ===================== -->
+  <text class="zone t-own" x="632" y="118">THE EXPORTER SEAM</text>
+  <text class="sm" x="632" y="136">var.exporters — swap by variable,</text>
+  <text class="sm" x="632" y="152">never by editing the module</text>
+
+  <rect class="panel" x="634" y="192" width="164" height="44" rx="7"/>
+  <rect class="own-s" x="634" y="192" width="164" height="44" rx="7"/>
+  <text class="lbl" x="646" y="212">prometheusremotewrite</text>
+  <text class="sm" x="646" y="228">metrics</text>
+
+  <rect class="own-s" x="620" y="176" width="192" height="326" rx="10" stroke-opacity=".35"/>
+  <!-- the interchangeable slot -->
+  <rect class="slot" x="626" y="262" width="180" height="146" rx="9"/>
+  <text class="sm t-own" x="636" y="280">traces_pipeline_exporters</text>
+  <rect class="panel" x="638" y="288" width="156" height="34" rx="6"/>
+  <rect class="own-s" x="638" y="288" width="156" height="34" rx="6"/>
+  <text class="lbl" x="650" y="310">otlp/tempo</text>
+  <text class="sm t-own" x="742" y="310">default</text>
+  <rect class="alt" x="638" y="330" width="156" height="30" rx="6"/>
+  <text class="lbl" x="650" y="350">otlp/jaeger</text>
+  <rect class="alt" x="638" y="368" width="156" height="30" rx="6"/>
+  <text class="lbl" x="650" y="388">otlphttp/&lt;vendor&gt;</text>
+
+  <rect class="panel" x="634" y="448" width="164" height="44" rx="7"/>
+  <rect class="own-s" x="634" y="448" width="164" height="44" rx="7"/>
+  <text class="lbl" x="646" y="468">otlphttp/loki</text>
+  <text class="sm" x="646" y="484">logs</text>
+
+  <!-- ===================== OPTIONAL KAFKA BUS ===================== -->
+  <text class="zone t-opt" x="360" y="508">OPTIONAL BUS · var.kafka.enabled = false by default</text>
+  <rect class="opt-f" x="300" y="516" width="506" height="132" rx="10"/>
+
+  <rect class="panel" x="316" y="556" width="132" height="50" rx="7"/>
+  <rect class="own-s" x="316" y="556" width="132" height="50" rx="7" stroke-dasharray="4 3"/>
+  <text class="sm" x="326" y="578">kafka/{metrics,</text>
+  <text class="sm" x="326" y="595">traces, logs}</text>
+
+  <rect class="panel" x="476" y="556" width="132" height="50" rx="7"/>
+  <rect class="own-s" x="476" y="556" width="132" height="50" rx="7" stroke-dasharray="4 3"/>
+  <text class="sm" x="486" y="578">otel-consumer</text>
+  <text class="sm" x="486" y="595">Deployment ×N</text>
+
+  <rect class="panel" x="636" y="556" width="156" height="50" rx="7"/>
+  <rect class="own-s" x="636" y="556" width="156" height="50" rx="7" stroke-dasharray="4 3"/>
+  <text class="sm" x="646" y="578">kafkametrics scrapes the</text>
+  <text class="sm" x="646" y="595">bus itself → lag / ISR alerts</text>
+
+  <text class="sm" x="316" y="632">Same exporter definitions on both routes — only the hop changes.</text>
+
+  <path class="flow-opt" marker-end="url(#mk)" d="M330 264 V556"/>
+  <text class="edge t-opt" x="338" y="430">bus mode</text>
+  <path class="flow-opt" marker-end="url(#mk)" d="M448 581 H476"/>
+  <path class="flow-opt" marker-end="url(#mk)" d="M608 581 H636"/>
+  <path class="flow-opt" marker-end="url(#mk)" d="M542 556 V534 Q542 522 558 522 H686 Q700 522 700 510 V504"/>
+
+  <!-- ===================== BOUNDARY 2 ===================== -->
+  <path class="bound" d="M838 92 V664"/>
+  <g transform="rotate(-90 838 560)">
+    <text class="zone t-ext" x="838" y="560" text-anchor="middle" dy="-6">BACKENDS</text>
+    <text class="sm" x="838" y="560" text-anchor="middle" dy="12">assumed present</text>
+  </g>
+
+  <!-- ===================== BACKENDS ===================== -->
+  <path class="flow" marker-end="url(#mo)" d="M798 214 H866"/>
+  <path class="flow" marker-end="url(#mo)" d="M806 332 H866"/>
+  <path class="flow" marker-end="url(#mo)" d="M798 470 H866"/>
+
+  <rect class="ext-f" x="866" y="192" width="200" height="46" rx="8"/>
+  <text class="bt" x="880" y="214">Prometheus</text>
+  <text class="sm" x="880" y="230">remote-write receiver</text>
+
+  <rect class="ext-f" x="866" y="302" width="200" height="60" rx="8"/>
+  <text class="bt" x="880" y="326">Trace backend</text>
+  <text class="sm" x="880" y="345">whichever the slot selects</text>
+
+  <rect class="ext-f" x="866" y="447" width="200" height="46" rx="8"/>
+  <text class="bt" x="880" y="469">Loki</text>
+  <text class="sm" x="880" y="485">OTLP/HTTP</text>
+
+  <rect class="ext-f" x="866" y="516" width="200" height="46" rx="8"/>
+  <text class="bt" x="880" y="538">Grafana</text>
+  <text class="sm" x="880" y="554">renders the dashboards</text>
+
+  <rect class="ext-f" x="866" y="584" width="200" height="52" rx="8"/>
+  <text class="bt" x="880" y="606">Alertmanager</text>
+  <text class="sm" x="880" y="624">→ PagerDuty, by severity</text>
+
+  <!-- ===================== CONFIGURATION AS CODE ===================== -->
+  <rect class="own-f" x="40" y="686" width="1100" height="196" rx="12"/>
+  <text class="zone t-own" x="60" y="712">CONFIGURATION AS CODE · ConfigMaps this module ships into the backends above</text>
+
+  <rect class="panel" x="60" y="730" width="260" height="86" rx="8"/>
+  <rect class="own-s" x="60" y="730" width="260" height="86" rx="8"/>
+  <text class="bt" x="74" y="754">prometheus.tf</text>
+  <text class="sm" x="74" y="773">scrape config + recording rules</text>
+  <text class="sm" x="74" y="791">service:request_rate · error_ratio</text>
+  <text class="sm" x="74" y="807">5m / 30m / 1h / 6h · latency_p99</text>
+
+  <rect class="panel" x="360" y="730" width="240" height="86" rx="8"/>
+  <rect class="own-s" x="360" y="730" width="240" height="86" rx="8"/>
+  <text class="bt" x="374" y="754">slo.tf</text>
+  <text class="sm" x="374" y="773">multi-window burn-rate alerts</text>
+  <text class="sm" x="374" y="791">fast 5m ∧ 1h @14.4× → page</text>
+  <text class="sm" x="374" y="807">slow 30m ∧ 6h @6× → ticket</text>
+
+  <rect class="panel" x="640" y="730" width="200" height="86" rx="8"/>
+  <rect class="own-s" x="640" y="730" width="200" height="86" rx="8"/>
+  <text class="bt" x="654" y="754">alerting.tf</text>
+  <text class="sm" x="654" y="773">Alertmanager routing</text>
+  <text class="sm" x="654" y="791">severity → PagerDuty</text>
+
+  <rect class="panel" x="880" y="730" width="240" height="86" rx="8"/>
+  <rect class="own-s" x="880" y="730" width="240" height="86" rx="8"/>
+  <text class="bt" x="894" y="754">grafana.tf · datasources.tf</text>
+  <text class="sm" x="894" y="773">RED + USE dashboards</text>
+  <text class="sm" x="894" y="791">exemplar destination follows</text>
+  <text class="sm" x="894" y="807">the selected trace backend</text>
+
+  <path class="flow" marker-end="url(#mo)" d="M320 770 H360"/>
+  <text class="sm" x="324" y="762">feeds</text>
+  <path class="flow" marker-end="url(#mo)" d="M600 770 H640"/>
+  <text class="sm" x="604" y="762">routes</text>
+  <path class="flow" marker-end="url(#mo)" d="M320 800 H340 Q352 800 352 812 V832 H860 Q880 832 880 816"/>
+  <text class="sm" x="600" y="848">the same rules also drive the dashboards</text>
+  <path class="flow" marker-end="url(#mo)" d="M740 730 V668 H852 V604 H862"/>
+
+  <!-- the exemplar pivot -->
+  <path class="flow-piv" marker-end="url(#mp)" d="M1100 730 V352 H1070"/>
+  <text class="edge t-piv" x="1092" y="688" text-anchor="end">exemplar</text>
+  <text class="sm t-piv" x="1092" y="704" text-anchor="end">trace_id → trace</text>
+
+  <!-- ===================== LEGEND ===================== -->
+  <g transform="translate(40,914)">
+    <rect class="own-f" x="0" y="-10" width="24" height="12" rx="3"/>
+    <text class="sm" x="30" y="0">provisioned by this module</text>
+    <rect class="ext-f" x="196" y="-10" width="24" height="12" rx="3"/>
+    <text class="sm" x="226" y="0">outside it — applications, and backends assumed present</text>
+    <rect class="opt-f" x="590" y="-10" width="24" height="12" rx="3"/>
+    <text class="sm" x="620" y="0">optional, off by default</text>
+    <path class="flow-piv" d="M760 -4 H786"/>
+    <text class="sm" x="794" y="0">exemplar pivot, metric → trace</text>
+  </g>
+</svg>

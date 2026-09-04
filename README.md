@@ -129,7 +129,7 @@ Each links to its ADR:
 Monitoring is shown mid-migration on purpose: the incumbent `datadog-monitors` and the portable OpenTelemetry collector layer run side by side, the export seam letting them coexist rather than forcing a big-bang cutover.
 The retirement criteria for the Datadog unit — and what stays vendor-native on purpose — are in [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).
 
-How telemetry actually flows — the three signal pipelines, the export seam, the recording rules, and the multi-window SLO burn-rate alerting — is written up in [OBSERVABILITY.md](OBSERVABILITY.md).
+How telemetry actually flows — the three signal pipelines, the export seam, the recording rules, and the multi-window SLO burn-rate alerting — is written up in [OBSERVABILITY.md](OBSERVABILITY.md), which opens with a [diagram of the module's scope](docs/images/observability-architecture.svg): where the application boundary falls, which exporters are swappable, and which route is optional.
 
 ### What this deliberately does not do
 

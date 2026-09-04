@@ -19,6 +19,13 @@ path is bound to a monitoring vendor's API. (The incumbent `modules/datadog-moni
 retirement criteria are in
 [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).)
 
+![Observability architecture: applications outside a labelled application boundary emit OTLP to a gateway collector; the gateway runs one receiver and one processor chain and fans metrics, traces and logs through a variable-driven exporter seam whose trace slot holds Tempo by default with Jaeger and a vendor endpoint as alternatives; an optional Kafka bus, off by default, is drawn as a dashed secondary route that rejoins the same seam; backends on the right are assumed present and installed elsewhere; below, configuration as code ships recording rules, burn-rate alerts, alert routing, dashboards and datasources, and an exemplar pivots from a latency panel into the selected trace backend](docs/images/observability-architecture.svg)
+
+*Where this module's scope begins and ends: applications own their instrumentation and emit OTLP
+across the boundary on the left, the gateway fans three signals through a variable-driven exporter
+seam whose trace slot is swappable, the Kafka route is optional and off by default, and the
+backends on the right are assumed present rather than installed here.*
+
 ## The three signal pipelines
 
 Source: `modules/observability/collector.tf` (receivers, processors, pipeline wiring) and
