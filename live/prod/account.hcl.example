@@ -4,6 +4,6 @@ locals {
   account_name = "prod"
 
   # ARN of the role Terragrunt assumes to deploy into this account. Leave empty for local
-  # credential-less validation. Example: "arn:aws:iam::333333333333ole/terragrunt-deploy"
+  # credential-less validation. Example: "arn:aws:iam::333333333333:role/terragrunt-deploy"
   deploy_role_arn = ""
 }

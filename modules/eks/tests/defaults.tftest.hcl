@@ -16,7 +16,7 @@ mock_provider "tls" {}
 
 variables {
   cluster_name       = "acme-prod-eks"
-  kubernetes_version = "1.31"
+  kubernetes_version = "1.34"
   subnet_ids         = ["subnet-a", "subnet-b", "subnet-c"]
 }
 

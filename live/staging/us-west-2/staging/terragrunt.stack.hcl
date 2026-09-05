@@ -36,7 +36,7 @@ unit "eks" {
   source = "${get_repo_root()}/catalog/units/eks"
   path   = "eks"
   values = {
-    kubernetes_version     = "1.31"
+    kubernetes_version     = "1.34"
     endpoint_public_access = false
   }
 }

@@ -5,7 +5,7 @@ variable "cluster_name" {
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes minor version for the control plane, e.g. \"1.31\"."
+  description = "Kubernetes minor version for the control plane, e.g. \"1.34\"."
   type        = string
   nullable    = false
 
