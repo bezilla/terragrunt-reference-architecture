@@ -11,6 +11,11 @@
 # Editing anything under live/ (as with catalog/ and modules/) is what the apply workflow treats as
 # an infrastructure change: such a push is the only kind that asks a reviewer to approve a prod
 # deploy. Pushes touching nothing else are recorded against the environments but deploy nothing.
+#
+# The approval is asked for on the strength of the change alone, not on whether this repository can
+# currently apply it. With no AWS_APPLY_ROLE_ARN configured the reviewer is still prompted and the
+# apply is skipped afterwards, inside the job -- because a gate that only fires once credentials
+# exist has never been tested by the time it first matters.
 
 locals {
   account_vars = read_terragrunt_config(find_in_parent_folders("account.hcl"))
