@@ -21,6 +21,16 @@ name: apply
 # This exists because environment protection is evaluated BEFORE a job's first step runs: a job
 # cannot both enter an environment and decline to wait. Gating the jobs keeps docs-only pushes from
 # costing an approval; minting the records out of band keeps the Environments panel current anyway.
+#
+# READ THE PANEL ACCORDINGLY. Environment protection gates Actions JOBS, not the Deployments API:
+# `required_reviewers` on prod stops the gated job from starting, and has no say over a record
+# written with `deployments: write`. So a record minted by the `record` job carries no reviewer
+# sign-off, and none was asked for -- it attests that the workflow ran, nothing more. Only records
+# from the deploy path mean a human approved an apply. The no-op records say so in their own
+# description; this note is here because the panel itself cannot show you which path produced a
+# green tick. Anything that would make the distinction load-bearing -- treating the panel as an
+# audit trail, or gating a release on it -- needs a check on the deployment's creator and
+# description, not on its colour.
 
 on:
   push:
