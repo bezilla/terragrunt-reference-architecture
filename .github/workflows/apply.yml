@@ -24,7 +24,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Ungated on purpose, and first. A job carrying `environment:` waits for that
+  # environment's protection rules BEFORE any of its steps run, so a guard living
+  # inside the gated job cannot prevent the wait -- it executes only after someone
+  # has already been asked to approve. A docs-only push therefore parked a run in
+  # "waiting" against prod indefinitely.
+  #
+  # This job carries no environment, so it runs immediately and decides whether a
+  # deploy is both configured and necessary. Reviewers are only asked when there is
+  # something real to approve.
+  precheck:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${{ vars.AWS_APPLY_ROLE_ARN }}" ]; then
+            echo "AWS_APPLY_ROLE_ARN is not set; there is nothing to deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          before="${{ github.event.before }}"
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            changed="$(git show --name-only --format= "${{ github.sha }}")"
+          else
+            changed="$(git diff --name-only "$before" "${{ github.sha }}" 2>/dev/null \
+              || git show --name-only --format= "${{ github.sha }}")"
+          fi
+
+          # Only infrastructure paths can change what an apply would do. A README or
+          # a diagram cannot, and must not cost a reviewer an approval prompt.
+          if printf '%s\n' "$changed" | grep -qE '^(live/|catalog/|modules/)'; then
+            echo "infrastructure paths changed; an apply is warranted."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no infrastructure paths changed; skipping apply."
+            printf '%s\n' "$changed" | sed 's/^/  /'
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
   management:
+    needs: precheck
+    if: needs.precheck.outputs.deploy == 'true'
     uses: ./.github/workflows/apply-stack.yml
     with:
       stack: management/us-west-2/global
@@ -32,7 +81,8 @@ jobs:
     secrets: inherit
 
   staging:
-    needs: management
+    needs: [precheck, management]
+    if: needs.precheck.outputs.deploy == 'true'
     uses: ./.github/workflows/apply-stack.yml
     with:
       stack: staging/us-west-2/staging
@@ -40,7 +90,8 @@ jobs:
     secrets: inherit
 
   prod:
-    needs: staging
+    needs: [precheck, staging]
+    if: needs.precheck.outputs.deploy == 'true'
     uses: ./.github/workflows/apply-stack.yml
     with:
       stack: prod/us-west-2/prod
