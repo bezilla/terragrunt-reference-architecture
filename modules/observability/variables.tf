@@ -116,7 +116,8 @@ variable "grafana_datasources" {
 
     CONFLICT: if your Grafana umbrella chart already provisions a datasource named "Prometheus",
     set enabled = false here (or rename via prometheus_name/prometheus_uid) so the two do not
-    fight over the same name.
+    fight over the same name. The shipped dashboards reference the datasource by name and are
+    rendered with templatefile, so a rename repoints their panels too — it does not orphan them.
   EOT
   type = object({
     enabled         = optional(bool, true)

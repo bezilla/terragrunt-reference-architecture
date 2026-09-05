@@ -209,6 +209,32 @@ run "dashboards_are_templated_and_carry_exemplars" {
   }
 }
 
+run "dashboards_follow_a_renamed_prometheus_datasource" {
+  command = plan
+  variables {
+    grafana_datasources = { prometheus_name = "Platform Prometheus" }
+  }
+
+  # The datasource variable documents renaming as the escape hatch for a name collision with an
+  # existing Grafana chart. Panels reference the datasource by name, so if the dashboards did not
+  # follow the rename they would resolve to nothing — taking the documented advice would silently
+  # break every panel. This asserts the advice is true rather than plausible.
+  assert {
+    condition = alltrue([
+      can(regex("\"datasource\": \"Platform Prometheus\"", kubernetes_config_map_v1.dashboard_red.data["red-services.json"])),
+      can(regex("\"datasource\": \"Platform Prometheus\"", kubernetes_config_map_v1.dashboard_use.data["use-nodes.json"])),
+    ])
+    error_message = "Renaming prometheus_name must repoint the shipped dashboards; otherwise the documented collision fix orphans every panel."
+  }
+  assert {
+    condition = alltrue([
+      !can(regex("\"datasource\": \"Prometheus\"", kubernetes_config_map_v1.dashboard_red.data["red-services.json"])),
+      can(regex("\"name\": \"Platform Prometheus\"", kubernetes_config_map_v1.datasources[0].data["datasources.yaml"])),
+    ])
+    error_message = "No stale hardcoded name may survive the rename, and the provisioned datasource must carry the same name the panels ask for."
+  }
+}
+
 run "dashboards_and_routing" {
   command = plan
   assert {

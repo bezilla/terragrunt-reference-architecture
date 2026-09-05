@@ -237,7 +237,10 @@ An exemplar is a trace id stapled to a histogram sample. It is what turns "p99 i
 4. Grafana renders them on the panel and links each one to a trace datasource.
 
 Step 4 is why `datasources.tf` exists. Dashboards referenced datasources by name and nothing in
-this repo provisioned any, so an exemplar link had nowhere to land. Datasources now ship as code
+this repo provisioned any, so an exemplar link had nowhere to land. The name is not hardcoded in
+the committed JSON: both dashboards are rendered with `templatefile` from
+`grafana_datasources.prometheus_name`, so renaming the datasource out of a collision repoints the
+panels instead of orphaning them. Datasources now ship as code
 through the same Grafana sidecar the dashboards use (`grafana_datasource=1`), and the Prometheus
 datasource declares `exemplarTraceIdDestinations` keyed on `trace_id`.
 

@@ -8,12 +8,12 @@
   "time": { "from": "now-6h", "to": "now" },
   "templating": {
     "list": [
-      { "name": "node", "type": "query", "datasource": "Prometheus", "label": "node", "includeAll": true, "multi": true, "query": "label_values(node:cpu_utilization:rate5m, node)", "refresh": 2 }
+      { "name": "node", "type": "query", "datasource": "${datasource}", "label": "node", "includeAll": true, "multi": true, "query": "label_values(node:cpu_utilization:rate5m, node)", "refresh": 2 }
     ]
   },
   "panels": [
-    { "id": 1, "title": "Utilization — CPU", "type": "timeseries", "datasource": "Prometheus", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 }, "fieldConfig": { "defaults": { "unit": "percentunit" } }, "targets": [ { "expr": "node:cpu_utilization:rate5m{node=~\"$node\"}", "legendFormat": "{{node}}" } ] },
-    { "id": 2, "title": "Saturation — memory", "type": "timeseries", "datasource": "Prometheus", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 }, "fieldConfig": { "defaults": { "unit": "percentunit" } }, "targets": [ { "expr": "node:memory_saturation:ratio{node=~\"$node\"}", "legendFormat": "{{node}}" } ] },
-    { "id": 3, "title": "Saturation — run-queue (load/CPU)", "type": "timeseries", "datasource": "Prometheus", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 }, "targets": [ { "expr": "node:load_saturation:ratio{node=~\"$node\"}", "legendFormat": "{{node}}" } ] }
+    { "id": 1, "title": "Utilization — CPU", "type": "timeseries", "datasource": "${datasource}", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 }, "fieldConfig": { "defaults": { "unit": "percentunit" } }, "targets": [ { "expr": "node:cpu_utilization:rate5m{node=~\"$node\"}", "legendFormat": "{{node}}" } ] },
+    { "id": 2, "title": "Saturation — memory", "type": "timeseries", "datasource": "${datasource}", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 }, "fieldConfig": { "defaults": { "unit": "percentunit" } }, "targets": [ { "expr": "node:memory_saturation:ratio{node=~\"$node\"}", "legendFormat": "{{node}}" } ] },
+    { "id": 3, "title": "Saturation — run-queue (load/CPU)", "type": "timeseries", "datasource": "${datasource}", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 }, "targets": [ { "expr": "node:load_saturation:ratio{node=~\"$node\"}", "legendFormat": "{{node}}" } ] }
   ]
 }
