@@ -4,6 +4,20 @@
 # multi-instance Aurora cluster with deletion protection. The only differences from staging are
 # the `values` — the catalog units and their wiring are shared. This is the DRY payoff.
 
+# Bootstrap unit. It creates the S3 bucket and KMS key that every OTHER unit in this
+# stack stores state in, so it cannot itself live in that bucket -- it deliberately does
+# not include the root config and runs on local state. Apply it ON ITS OWN, first:
+#
+#   terragrunt stack generate
+#   (cd .terragrunt-stack/state-backend && terragrunt apply)
+#
+# and only then `terragrunt run --all apply`. Running everything at once races: the other
+# units include root, so they try to initialise a backend in a bucket that does not exist.
+unit "state_backend" {
+  source = "${get_repo_root()}/catalog/units/state-backend"
+  path   = "state-backend"
+}
+
 unit "vpc" {
   source = "${get_repo_root()}/catalog/units/vpc"
   path   = "vpc"

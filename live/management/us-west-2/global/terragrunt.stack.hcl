@@ -5,6 +5,9 @@
 # generated `.terragrunt-stack/` directory. Run `terragrunt stack generate` (or any `terragrunt
 # run --all ...`) from this directory.
 
+# Bootstrap unit -- apply it ON ITS OWN before `run --all`. It creates the bucket the
+# other two units store their state in, and nothing here orders them, so a single
+# `run --all apply` on a fresh account races the backend against its own creation.
 unit "state_backend" {
   source = "${get_repo_root()}/catalog/units/state-backend"
   path   = "state-backend"

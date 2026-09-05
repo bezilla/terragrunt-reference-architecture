@@ -3,12 +3,34 @@
 Bootstrap module for the OpenTofu/Terraform remote state backend: a customer-managed KMS key and a locked-down, versioned S3 bucket. Uses **S3 native locking** (`use_lockfile`) — there is no DynamoDB lock table (see [ADR-0005](../../docs/adr/0005-s3-native-locking-over-dynamodb.md)).
 
 ## Bootstrap
-This module stores the state for *all other* state. Apply it once with a local backend, then migrate its own state into the bucket it created:
+
+This module stores the state for *all other* state, so it cannot store its own state in the bucket it creates. **Its state stays local, by design** — the catalog unit that instantiates it deliberately does not include the root config, and therefore generates no S3 backend at all.
+
+Run it on its own, once per account, before anything else in that account:
+
 ```bash
-tofu init && tofu apply          # creates bucket + key with local state
-# add the S3 backend block, then:
-tofu init -migrate-state          # moves local state into the new bucket
+cd live/<account>/<region>/<env>
+terragrunt stack generate
+(cd .terragrunt-stack/state-backend && terragrunt apply)   # local state
+terragrunt run --all apply                                  # everything else, now that the bucket exists
 ```
+
+**Why not migrate it into the bucket.** Migrating is the more common advice, and it is a reasonable
+choice, but it is not the one this repository makes. The migration has to be done by hand — adding a
+backend block the unit does not generate, then `tofu init -migrate-state` — and it leaves the bucket's
+own state inside the bucket, so a bucket-destroying accident takes the record of the bucket with it.
+
+The trade is deliberate: this is two resources that change almost never, and if the local state file
+is lost they are recoverable by import rather than by rebuild:
+
+```bash
+tofu import aws_s3_bucket.state tfstate-<account-id>-<region>
+tofu import aws_kms_key.state   <key-id>
+```
+
+Back the file up if you like, but losing it is an inconvenience, not an outage. If you prefer the
+migration model, nothing here stops you — add the backend block and re-init; just do it consistently
+and update the quickstart in the top-level README to match.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
