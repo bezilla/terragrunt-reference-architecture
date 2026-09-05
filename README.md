@@ -54,20 +54,30 @@ $EDITOR live/*/account.hcl                       # set account_id, deploy_role_a
 # 2. Validate everything offline — no AWS credentials needed:
 make validate
 
-# 3. Bootstrap remote state in the management account (one time).
-#    The state-backend unit creates the S3 bucket + KMS key using LOCAL state — it cannot store its
-#    own state in a bucket that does not exist yet. Every OTHER unit then uses that bucket. The
-#    state-backend unit keeps local state by design (it is tiny and rarely changes; back it up).
+# 3. Bootstrap remote state. ONCE PER ACCOUNT, and it is its own operation.
+#
+#    live/root.hcl derives the backend bucket per account (tfstate-<account-id>-<region>), so
+#    management, staging and prod each need their own. Every stack therefore carries a
+#    state-backend unit, and it must be applied ON ITS OWN first: the other units in the stack
+#    include the root config, so a single `run --all` on a fresh account races them against the
+#    creation of the bucket they are trying to initialise a backend in.
+#
+#    The state-backend unit keeps LOCAL state permanently and by design — it cannot live in the
+#    bucket it creates. See modules/state-backend/README.md, including how to recover it by import
+#    if the local file is lost.
 aws sso login                                    # or however you get credentials
 cd live/management/us-west-2/global
 terragrunt stack generate
-terragrunt run --all apply                        # creates the S3 state bucket + KMS key
+(cd .terragrunt-stack/state-backend && terragrunt apply)   # bucket + KMS key, on local state
+terragrunt run --all apply                                  # everything else, into that bucket
 cd -
 
-# 4. Deploy a stack (management is already applied above):
+# 4. Deploy a stack (management is already applied above). Same two-step shape: bootstrap
+#    that account's state bucket on its own, then the rest of the stack.
 cd live/staging/us-west-2/staging
 terragrunt stack generate
-terragrunt run --all plan                          # review
+(cd .terragrunt-stack/state-backend && terragrunt apply)   # once per account, local state
+terragrunt run --all plan                                   # review
 terragrunt run --all apply
 #    Then repeat for prod. Order: management → staging → prod.
 ```
@@ -91,7 +101,7 @@ Everything else has a safe default. These do not:
 
 | Path | What's in it |
 |---|---|
-| `modules/` | 15 reusable OpenTofu modules (each with tests, a README, and a lockfile) |
+| `modules/` | 16 reusable OpenTofu modules (each with tests, a README, and a lockfile) |
 | `catalog/units/` | Terragrunt unit definitions that source the modules |
 | `live/` | `root.hcl` + per-account `account.hcl`/`region.hcl`/`env.hcl` + environment stacks |
 | `policy/` | OPA/conftest policies (tags, ingress, encryption, IMDSv2) + tests |
@@ -111,11 +121,38 @@ Each links to its ADR:
 - [Tagging via default_tags](docs/adr/0007-tagging-and-default-tags.md) — baseline tags once, in the provider.
 - [Deploy pipeline](docs/adr/0008-deploy-pipeline-apply-on-merge.md) — apply on merge, gated by a prod environment reviewer.
 - [Observability & the OTel collector](docs/adr/0009-otel-collector-and-optional-kafka-bus.md) — the collector as the cloud-portability seam; Kafka only above a stated bar.
+- [Kubernetes version & upgrade policy](docs/adr/0010-kubernetes-version-and-upgrade-policy.md) — track standard support, one behind newest; control plane → add-ons → nodes.
 
 Monitoring is shown mid-migration on purpose: the incumbent `datadog-monitors` and the portable OpenTelemetry collector layer run side by side, the export seam letting them coexist rather than forcing a big-bang cutover.
 The retirement criteria for the Datadog unit — and what stays vendor-native on purpose — are in [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).
 
 How telemetry actually flows — the three signal pipelines, the export seam, the recording rules, and the multi-window SLO burn-rate alerting — is written up in [OBSERVABILITY.md](OBSERVABILITY.md), which opens with a [diagram of the module's scope](docs/images/observability-architecture.svg): where the application boundary falls, which exporters are swappable, and which route is optional.
+
+## Reference boundary
+
+What this is, stated plainly, because several things it is *not* look like omissions otherwise.
+
+**It is an application-platform reference.** VPC, EKS, data stores, edge, observability and the
+pipeline that plans and applies them, expressed as reusable modules and per-account stacks.
+
+**It is not a landing zone.** There is no AWS Organizations setup, no Control Tower, no SCPs, no
+account vending, no centralised logging or GuardDuty/Security Hub baseline. It assumes the accounts
+already exist and that you own credentials for them. If you are looking for the layer that *creates*
+accounts and governs them, that is a different repository and a much larger one — graded as a landing
+zone, this will always look incomplete, because it is not attempting that job.
+
+**It is validated, not apply-tested.** Every push runs `fmt`, offline `validate` across all stacks,
+module unit tests (`tofu test`) and policy unit tests (`conftest verify`). Nothing in CI has ever
+applied this to a live AWS account: there is no account behind it. The plan and apply workflows are
+real and wired, and they are inert until you supply `AWS_PLAN_ROLE_ARN` / `AWS_APPLY_ROLE_ARN`. Treat
+the resource configurations as reviewed-and-validated, not as battle-tested.
+
+**The deploy role is deliberately under-powered.** `catalog/units/iam-github-oidc` attaches
+`ReadOnlyAccess`, which is enough to plan and not enough to apply. Scoping a real per-account
+plan/apply role — least-privilege write access to exactly the resources these stacks manage, brokered
+per environment — is a genuine piece of work this repository documents rather than performs. Widening
+that policy is a decision you should make explicitly, with your own resource scope, rather than
+inherit from an example.
 
 ### What this deliberately does not do
 
