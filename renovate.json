@@ -19,9 +19,11 @@
     },
     {
       "matchManagers": ["github-actions"],
-      "groupName": "github actions"
+      "groupName": "github actions",
+      "pinDigests": true
     }
   ],
   "terraform": { "enabled": true },
-  "mise": { "enabled": true }
+  "mise": { "enabled": true },
+  "github-actions": { "enabled": true }
 }

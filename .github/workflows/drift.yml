@@ -28,8 +28,8 @@ jobs:
           - staging/us-west-2/staging
           - prod/us-west-2/prod
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
 
       - id: guard
         run: |
@@ -42,7 +42,7 @@ jobs:
 
       - name: Configure AWS credentials (OIDC)
         if: steps.guard.outputs.enabled == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           aws-region: us-west-2
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
@@ -66,7 +66,7 @@ jobs:
 
       - name: Open drift issue
         if: steps.guard.outputs.enabled == 'true' && steps.drift.outputs.drift == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const stack = "${{ matrix.stack }}";
