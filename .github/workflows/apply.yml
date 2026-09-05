@@ -82,12 +82,15 @@ jobs:
           echo "apply role configured: $role"
           printf '%s\n' "$changed" | sed 's/^/  /'
 
-          if [ "$paths" = true ] && [ "$role" = true ]; then
+          # The decision turns on the CHANGED PATHS ALONE, deliberately. Conditioning it on the
+          # role as well made the prod approval gate unreachable: with no role configured, deploy
+          # was never true, the prod job never entered its environment, and a required-reviewer
+          # rule that never fires is not a gate. An infrastructure change is exactly what a
+          # reviewer should be asked about, whether or not this repository can currently apply it;
+          # if there is no role, the guard inside the stack job skips the apply after approval.
+          if [ "$paths" = true ]; then
             echo "deploy=true"  >> "$GITHUB_OUTPUT"
             echo "reason=apply"  >> "$GITHUB_OUTPUT"
-          elif [ "$paths" = true ]; then
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-            echo "reason=No-op: infrastructure changed but no AWS role is configured" >> "$GITHUB_OUTPUT"
           else
             echo "deploy=false" >> "$GITHUB_OUTPUT"
             echo "reason=No-op: no infrastructure paths changed by this push" >> "$GITHUB_OUTPUT"
@@ -119,6 +122,43 @@ jobs:
       stack: prod/us-west-2/prod
       environment: prod
     secrets: inherit
+
+  # When the gated path runs without a role, Actions still marks each deployment "success"
+  # because the job exited 0 -- the guard inside simply skipped the apply. Left alone that reads
+  # as a live AWS deployment. This job carries no `environment:` (so it never waits) and runs last
+  # (so its status lands after Actions' own), and it speaks only when there was no role to deploy
+  # with. A real apply keeps Actions' status untouched.
+  label:
+    needs: [management, staging, prod]
+    if: always() && needs.management.result == 'success' && vars.AWS_APPLY_ROLE_ARN == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Mark the approved deployments as guard no-ops
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          url="${{ github.server_url }}/${{ github.repository }}#reference-boundary"
+          desc='No-op: approved, but no AWS role is configured so nothing was applied'
+          for env in management staging prod; do
+            id="$(gh api "repos/${{ github.repository }}/deployments?environment=$env&sha=${{ github.sha }}" \
+                    --jq '.[0].id // empty' 2>/dev/null)" || id=""
+            if [ -z "$id" ]; then
+              echo "::warning::no deployment recorded for $env; nothing to label."
+              continue
+            fi
+            if ! err="$(jq -nc --arg d "$desc" --arg u "$url" \
+                 '{state:"success", description:$d, environment_url:$u, auto_inactive:false}' \
+                 | gh api -X POST "repos/${{ github.repository }}/deployments/$id/statuses" --input - 2>&1)"; then
+              echo "::warning::could not label $env deployment $id: $err"
+              continue
+            fi
+            echo "labelled $env deployment $id as an approved no-op."
+          done
+          exit 0
 
   # The other path. When there is no apply to make, the environments would otherwise hear nothing
   # and the panel would still be describing an older commit. This job records the same three
