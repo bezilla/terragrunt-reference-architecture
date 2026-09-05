@@ -95,10 +95,17 @@ jobs:
       - name: Terragrunt plan
         if: steps.guard.outputs.enabled == 'true'
         id: plan
+        # shell: bash gives -o pipefail; set it explicitly too so the intent survives
+        # anyone changing the shell. Without it the exit status of the pipeline is
+        # tee's, and a failed terragrunt run reports success.
+        shell: bash
         run: |
+          set -euo pipefail
           cd "live/${{ matrix.stack }}"
           terragrunt stack generate
-          terragrunt run --all plan --non-interactive 2>&1 | tee /tmp/plan.txt
+          # -out is what makes the plan reviewable by the policy gate below. Without a
+          # saved plan there is nothing for conftest to read.
+          terragrunt run --all --non-interactive -- plan -out=tofuplan 2>&1 | tee /tmp/plan.txt
 
       - name: Install conftest
         if: steps.guard.outputs.enabled == 'true'
@@ -108,12 +115,37 @@ jobs:
 
       - name: Policy check against plan JSON
         if: steps.guard.outputs.enabled == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           cd "live/${{ matrix.stack }}"
-          for u in .terragrunt-stack/*/; do
-            (cd "$u" && tofu show -json tofuplan 2>/dev/null > plan.json) || continue
-            conftest test --policy "$GITHUB_WORKSPACE/policy" "$u/plan.json" || exit 1
+
+          # Terragrunt executes each unit inside its own .terragrunt-cache working
+          # directory, so `-out=tofuplan` lands there and NOT in the unit directory.
+          # Locate the saved plans wherever they were actually written.
+          # Portable array fill: mapfile is bash 4+, and contributors on macOS have
+          # bash 3.2, so this stays runnable outside the runner.
+          plans=()
+          while IFS= read -r found; do plans+=("$found"); done \
+            < <(find .terragrunt-stack -type f -name tofuplan | sort)
+
+          # An empty set is a failure, not a pass. The previous version skipped past
+          # missing plans with `|| continue`, so a run that policed nothing at all
+          # reported success -- which is indistinguishable from a run that policed
+          # everything and found no violations.
+          if [ "${#plans[@]}" -eq 0 ]; then
+            echo "::error::no saved plans found under .terragrunt-stack; the policy gate had nothing to evaluate"
+            exit 1
+          fi
+
+          for plan in "${plans[@]}"; do
+            unit_dir="$(dirname "$plan")"
+            ( cd "$unit_dir" && tofu show -json tofuplan > plan.json )
+            echo "== conftest: ${unit_dir}"
+            conftest test --policy "$GITHUB_WORKSPACE/policy" "${unit_dir}/plan.json"
           done
+
+          echo "policy gate evaluated ${#plans[@]} plan(s)"
 
       - name: Infracost diff
         if: steps.guard.outputs.enabled == 'true' && env.INFRACOST_API_KEY != ''
