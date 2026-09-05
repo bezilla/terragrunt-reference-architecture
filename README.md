@@ -14,24 +14,10 @@ layout, and at anyone who wants a worked example rather than a tutorial.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph mgmt["management account"]
-    SB[state-backend]:::m
-    OIDC[github-oidc]:::m
-    IAM[account-baseline]:::m
-  end
-  subgraph env["staging / prod account"]
-    VPC[vpc] --> EKS[eks] --> NG[node group]
-    EKS --> ADD[add-ons] & NS[namespaces]
-    VPC --> AUR[aurora] & RED[redis]
-    DNS[route53] --> ACM[acm] --> CF[cloudfront + waf]
-    MON[datadog monitors]
-  end
-  OIDC -. deploy role .-> env
-  EKS -. IRSA .-> IAM
-  classDef m fill:#eef;
-```
+![AWS topology: a management account holding a state backend, a GitHub OIDC deploy role and an IAM account baseline, and across a labelled account boundary a workload account running a VPC with EKS, its node group, add-ons, namespaces and the OpenTelemetry collector layer, alongside Aurora, Redis and Datadog monitors, plus an edge tier of Route53, ACM and CloudFront where the ACM certificate and CloudFront distribution exist only in prod](docs/images/aws-architecture.svg)
+
+*Three accounts, one stack file each. The management account holds state and identity and runs no
+workloads; the workload accounts share a shape but not a size, and the edge tier exists only in prod.*
 
 Traffic resolves via Route53 → CloudFront (WAFv2, ACM cert in us-east-1) → EKS workloads. Pods
 reach Aurora and Redis privately inside the VPC. State lives per-account in S3 with native locking.

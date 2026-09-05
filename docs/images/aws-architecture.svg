@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 880" width="1180" height="880"
+     role="img" aria-labelledby="ttl dsc">
+  <title id="ttl">AWS topology: a management account holding state and identity, and workload accounts that share a shape but not a size</title>
+  <desc id="dsc">A management account holds three units — an S3 and KMS state backend with native
+  locking, a GitHub OIDC deploy role, and an IAM account baseline — and runs no workloads. Across a
+  labelled account boundary, each workload account runs the same stack: a VPC containing an EKS
+  cluster with its node group, add-ons, namespaces and the OpenTelemetry collector layer, alongside
+  Aurora, Redis and Datadog monitors, with an edge tier of Route53, ACM and CloudFront. The ACM
+  certificate and the CloudFront and WAF distribution exist only in prod. Below, the differences
+  between the two workload accounts are listed: staging runs ten units on spot instances with no
+  edge tier, prod runs twelve on on-demand instances.</desc>
+
+  <style>
+    /* Shared portfolio palette. Colour carries meaning:
+         own  provisioned by this repository
+         ext  AWS context that is not a resource here
+         opt  conditional — present in prod only
+         pivot the trust relationships that cross the account boundary */
+    :root{
+      --bg:#eef1f6; --panel:#fafbfd; --ink:#1f2937; --dim:#4b5563;
+      --own:#2f6fed; --ext:#5b6675; --opt:#a8570a; --pivot:#7241d6;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#141a23; --panel:#1c2531; --ink:#e6eaf1; --dim:#a7b2c2;
+        --own:#74abff; --ext:#98a3b3; --opt:#f0b357; --pivot:#c3a3ff;
+      }
+    }
+    .bg{fill:var(--bg)}
+    text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+         fill:var(--ink)}
+    .h1{font-size:24px;font-weight:700}
+    .h2{font-size:14px;fill:var(--dim)}
+    .zone{font-size:13px;font-weight:700;letter-spacing:.08em}
+    .grp{font-size:12px;font-weight:700;letter-spacing:.06em;fill:var(--dim)}
+    .bt{font-size:14.5px;font-weight:600}
+    .lbl{font-size:12.5px;fill:var(--dim)}
+    .sm{font-size:11.5px;fill:var(--dim)}
+    .edge{font-size:12px;font-weight:600}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+    .panel{fill:var(--panel)}
+    .own-s{stroke:var(--own);fill:none}
+    .own-f{fill:var(--own);fill-opacity:.07;stroke:var(--own);stroke-opacity:.5}
+    .ext-f{fill:var(--ext);fill-opacity:.08;stroke:var(--ext);stroke-opacity:.5}
+    .opt-f{fill:var(--opt);fill-opacity:.09;stroke:var(--opt);stroke-opacity:.8}
+    .t-own{fill:var(--own)} .t-ext{fill:var(--ext)} .t-opt{fill:var(--opt)} .t-piv{fill:var(--pivot)}
+    .f-own{fill:var(--own)} .f-piv{fill:var(--pivot)} .f-opt{fill:var(--opt)}
+    .flow{stroke:var(--own);stroke-width:2;fill:none}
+    .flow-piv{stroke:var(--pivot);stroke-width:2;fill:none;stroke-dasharray:4 3}
+    .flow-opt{stroke:var(--opt);stroke-width:2;fill:none}
+    .bound{stroke:var(--ext);stroke-width:2;stroke-dasharray:9 7;fill:none}
+  </style>
+
+  <defs>
+    <marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-own"/></marker>
+    <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-piv"/></marker>
+    <marker id="mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-opt"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="880" rx="10"/>
+
+  <text class="h1" x="40" y="44">AWS topology — the account is the isolation boundary</text>
+  <text class="h2" x="40" y="68">live/&lt;account&gt;/&lt;region&gt;/&lt;env&gt; · one Terragrunt stack per account · the same modules, different values</text>
+
+  <!-- ===================== MANAGEMENT ACCOUNT ===================== -->
+  <rect class="own-f" x="40" y="100" width="262" height="300" rx="12"/>
+  <text class="zone t-own" x="58" y="126">MANAGEMENT ACCOUNT</text>
+  <text class="sm" x="58" y="144">3 units · state and identity only</text>
+
+  <rect class="panel" x="58" y="158" width="226" height="56" rx="8"/>
+  <rect class="own-s" x="58" y="158" width="226" height="56" rx="8"/>
+  <text class="bt" x="72" y="180">state-backend</text>
+  <text class="sm" x="72" y="199">S3 + KMS · native locking, no DynamoDB</text>
+
+  <rect class="panel" x="58" y="226" width="226" height="56" rx="8"/>
+  <rect class="own-s" x="58" y="226" width="226" height="56" rx="8"/>
+  <text class="bt" x="72" y="248">iam-github-oidc</text>
+  <text class="sm" x="72" y="267">Actions deploy role · no static keys</text>
+
+  <rect class="panel" x="58" y="294" width="226" height="56" rx="8"/>
+  <rect class="own-s" x="58" y="294" width="226" height="56" rx="8"/>
+  <text class="bt" x="72" y="316">iam-account-baseline</text>
+  <text class="sm" x="72" y="335">users · groups · IRSA trust</text>
+
+  <text class="sm" x="58" y="376">No workloads run here.</text>
+  <text class="sm t-piv" x="40" y="428">The violet crossings are trust, not traffic:</text>
+  <text class="sm t-piv" x="40" y="446">Actions assumes the deploy role, and EKS</text>
+  <text class="sm t-piv" x="40" y="464">workloads assume baseline roles via IRSA.</text>
+
+  <!-- ===================== ACCOUNT BOUNDARY ===================== -->
+  <path class="bound" d="M326 100 V600"/>
+  <g transform="rotate(-90 326 480)">
+    <text class="zone t-ext" x="326" y="480" text-anchor="middle" dy="-6">ACCOUNT BOUNDARY</text>
+    <text class="sm" x="326" y="480" text-anchor="middle" dy="12">a separate AWS account</text>
+  </g>
+  <path class="flow-piv" marker-end="url(#mp)" d="M302 250 H358"/>
+  <path class="flow-piv" marker-end="url(#mp)" d="M358 320 H306"/>
+
+  <!-- ===================== WORKLOAD ACCOUNT ===================== -->
+  <rect class="own-f" x="352" y="100" width="788" height="500" rx="12"/>
+  <text class="zone t-own" x="370" y="126">WORKLOAD ACCOUNT · staging and prod are the same shape</text>
+  <text class="sm mono" x="370" y="146">provider pinned by allowed_account_ids · state at s3://tfstate-&lt;account&gt;-&lt;region&gt;</text>
+
+  <rect class="ext-f" x="372" y="162" width="748" height="300" rx="10"/>
+  <text class="grp" x="388" y="184">vpc · 3-TIER SUBNETS · NAT · FLOW LOGS</text>
+
+  <!-- EKS group -->
+  <rect class="own-f" x="388" y="196" width="360" height="252" rx="9"/>
+  <text class="grp t-own" x="402" y="216">EKS</text>
+  <rect class="panel" x="402" y="226" width="332" height="48" rx="7"/><rect class="own-s" x="402" y="226" width="332" height="48" rx="7"/>
+  <text class="bt" x="414" y="246">eks</text>
+  <text class="sm" x="414" y="264">control plane · OIDC provider · access entries</text>
+
+  <rect class="panel" x="402" y="282" width="332" height="44" rx="7"/><rect class="own-s" x="402" y="282" width="332" height="44" rx="7"/>
+  <text class="bt" x="414" y="301">eks-managed-node-group</text>
+  <text class="sm" x="414" y="318">IMDSv2 · gp3</text>
+
+  <rect class="panel" x="402" y="334" width="332" height="44" rx="7"/><rect class="own-s" x="402" y="334" width="332" height="44" rx="7"/>
+  <text class="bt" x="414" y="353">eks-addons · k8s-namespace</text>
+  <text class="sm" x="414" y="370">coredns · kube-proxy · vpc-cni · RBAC + quota</text>
+
+  <rect class="panel" x="402" y="386" width="332" height="48" rx="7"/><rect class="own-s" x="402" y="386" width="332" height="48" rx="7"/>
+  <text class="bt" x="414" y="406">observability</text>
+  <text class="sm" x="414" y="424">the OTel collector layer · see OBSERVABILITY.md</text>
+
+  <!-- Data group -->
+  <rect class="own-f" x="766" y="196" width="338" height="252" rx="9"/>
+  <text class="grp t-own" x="780" y="216">DATA</text>
+  <rect class="panel" x="780" y="226" width="310" height="66" rx="7"/><rect class="own-s" x="780" y="226" width="310" height="66" rx="7"/>
+  <text class="bt" x="792" y="246">aurora-postgres</text>
+  <text class="sm" x="792" y="264">RDS-managed master secret</text>
+  <text class="sm" x="792" y="282">no password in state or tfvars</text>
+
+  <rect class="panel" x="780" y="300" width="310" height="44" rx="7"/><rect class="own-s" x="780" y="300" width="310" height="44" rx="7"/>
+  <text class="bt" x="792" y="319">redis</text>
+  <text class="sm" x="792" y="336">ElastiCache · encrypted</text>
+
+  <rect class="panel" x="780" y="352" width="310" height="48" rx="7"/><rect class="own-s" x="780" y="352" width="310" height="48" rx="7"/>
+  <text class="bt" x="792" y="372">datadog-monitors</text>
+  <text class="sm" x="792" y="390">the incumbent, running mid-migration</text>
+
+  <text class="sm" x="780" y="426">Pods reach both privately, inside the VPC.</text>
+
+  <!-- ===================== EDGE ===================== -->
+  <text class="grp" x="372" y="492">EDGE · PUBLIC REQUEST PATH</text>
+  <rect class="panel" x="372" y="502" width="188" height="50" rx="8"/><rect class="own-s" x="372" y="502" width="188" height="50" rx="8"/>
+  <text class="bt" x="386" y="522">route53-zone</text>
+  <text class="sm" x="386" y="540">both environments</text>
+
+  <rect class="opt-f" x="596" y="502" width="200" height="50" rx="8"/>
+  <text class="bt t-opt" x="610" y="522">acm-certificate</text>
+  <text class="sm" x="610" y="540">us-east-1</text>
+
+  <rect class="opt-f" x="832" y="502" width="272" height="50" rx="8"/>
+  <text class="bt t-opt" x="846" y="522">cloudfront-waf</text>
+  <text class="sm" x="846" y="540">CloudFront + WAFv2 · rate limit</text>
+
+  <path class="flow" marker-end="url(#mo)" d="M560 527 H596"/>
+  <path class="flow-opt" marker-end="url(#mk)" d="M796 527 H832"/>
+  <text class="edge t-opt" x="596" y="576">PROD ONLY — staging has no edge tier at all</text>
+
+  <!-- ===================== WHAT DIFFERS ===================== -->
+  <path class="bound" d="M40 626 H1140" stroke-dasharray="4 6" stroke-opacity=".6"/>
+  <text class="zone t-ext" x="40" y="660">WHAT ACTUALLY DIFFERS</text>
+  <text class="sm" x="40" y="678">same modules · different values</text>
+
+  <rect class="ext-f" x="352" y="642" width="382" height="128" rx="9"/>
+  <text class="bt" x="370" y="666">staging · 10 units</text>
+  <text class="sm mono" x="370" y="690">m6i.large × 2 · SPOT</text>
+  <text class="sm" x="370" y="710">interruptions are tolerable here</text>
+  <text class="sm" x="370" y="732">no acm-certificate</text>
+  <text class="sm" x="370" y="752">no cloudfront-waf</text>
+
+  <rect class="ext-f" x="758" y="642" width="382" height="128" rx="9"/>
+  <text class="bt" x="776" y="666">prod · 12 units</text>
+  <text class="sm mono" x="776" y="690">m6i.xlarge × 3 · ON_DEMAND</text>
+  <text class="sm" x="776" y="710">capacity it can rely on</text>
+  <text class="sm t-opt" x="776" y="732">+ acm-certificate</text>
+  <text class="sm t-opt" x="776" y="752">+ cloudfront-waf</text>
+
+  <text class="lbl" x="40" y="806">Prod is not staging with bigger nodes. It carries an edge tier staging does not have, so the two stacks differ in shape as</text>
+  <text class="lbl" x="40" y="824">well as in size — which is the argument for one stack file per account rather than one parameterised template for both.</text>
+  <text class="sm mono t-ext" x="40" y="852">live/staging/us-west-2/staging/terragrunt.stack.hcl · live/prod/us-west-2/prod/terragrunt.stack.hcl</text>
+</svg>

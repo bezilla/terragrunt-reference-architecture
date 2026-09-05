@@ -4,46 +4,11 @@ A single-region-per-account AWS platform: a VPC, an EKS cluster with managed nod
 PostgreSQL and Redis for data, a CloudFront + WAF edge, Datadog monitors, and IAM wired for
 keyless CI and workload identity. Environments are isolated by account.
 
-```mermaid
-flowchart TB
-  subgraph mgmt["management account"]
-    SB["state-backend<br/>(S3 + KMS, native locking)"]
-    OIDC["iam-github-oidc<br/>(Actions deploy role)"]
-    BASE["iam-account-baseline<br/>(users, groups, IRSA)"]
-  end
+![AWS topology: a management account holding a state backend, a GitHub OIDC deploy role and an IAM account baseline, and across a labelled account boundary a workload account running a VPC with EKS, its node group, add-ons, namespaces and the OpenTelemetry collector layer, alongside Aurora, Redis and Datadog monitors, plus an edge tier of Route53, ACM and CloudFront where the ACM certificate and CloudFront distribution exist only in prod](images/aws-architecture.svg)
 
-  subgraph env["staging / prod account"]
-    direction TB
-    VPC["vpc<br/>3-tier subnets, NAT, flow logs"]
-    subgraph k8s["EKS"]
-      EKS["eks<br/>control plane, OIDC, access entries"]
-      NG["managed node group<br/>IMDSv2, gp3"]
-      ADD["add-ons<br/>coredns / kube-proxy / vpc-cni"]
-      NS["k8s-namespace<br/>RBAC + quota"]
-    end
-    subgraph data["Data"]
-      AUR["aurora-postgres<br/>Secrets Mgr creds, RDS Proxy"]
-      RDS_ROLES["postgres-roles<br/>logical DBs on shared cluster"]
-      RED["redis<br/>ElastiCache, encrypted"]
-    end
-    subgraph edge["Edge"]
-      DNS["route53-zone"]
-      ACM["acm-certificate<br/>(us-east-1)"]
-      CF["cloudfront-waf<br/>CloudFront + WAFv2"]
-    end
-    MON["datadog-monitors"]
-  end
-
-  OIDC -. "assumes deploy role" .-> env
-  VPC --> EKS --> NG
-  EKS --> ADD
-  EKS --> NS
-  VPC --> AUR
-  VPC --> RED
-  AUR --> RDS_ROLES
-  DNS --> ACM --> CF
-  EKS -. "IRSA" .-> BASE
-```
+*Read from the stack files rather than from memory: `live/management/.../global`, and the staging and
+prod stacks in `live/<account>/us-west-2/<env>/terragrunt.stack.hcl`. The unit counts, instance types
+and capacity types on it are the values those files actually set.*
 
 ## Request path
 Public traffic resolves through **Route53** to a **CloudFront** distribution, filtered by a
