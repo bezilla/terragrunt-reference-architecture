@@ -6,9 +6,17 @@ name: apply
 # and "prod". Put required reviewers on "prod" (and optionally a wait timer) so a human approves
 # production applies. The jobs run in order management -> staging -> prod; a failure stops the chain.
 #
-# Authenticates with OIDC via the AWS_APPLY_ROLE_ARN repository variable. Unset => the jobs skip
-# cleanly. The apply role's trust policy is the plan role's, with the sub condition scoped to
-# `repo:<OWNER>/<REPO>:ref:refs/heads/main` and (ideally) `:environment:<name>`.
+# Authenticates with OIDC via the AWS_APPLY_ROLE_ARN repository variable. Unset => the guard inside
+# each stack job skips the apply. The apply role's trust policy is the plan role's, with the sub
+# condition scoped to `repo:<OWNER>/<REPO>:ref:refs/heads/main` and (ideally) `:environment:<name>`.
+#
+# NOTE the jobs enter their environments unconditionally, so every push to main records a deployment
+# against management, staging and prod -- and, because `prod` carries a required-reviewer rule, every
+# push asks a reviewer to approve it. That is the cost of having the Environments panel reflect each
+# push; a guard cannot avoid it, because environment protection is evaluated BEFORE a job's first
+# step runs. If unattended approval prompts become a nuisance, gate the three jobs on a preceding
+# ungated job that decides whether a deploy is warranted -- at the price of no deployment record on
+# the pushes it skips.
 
 on:
   push:
@@ -24,56 +32,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Ungated on purpose, and first. A job carrying `environment:` waits for that
-  # environment's protection rules BEFORE any of its steps run, so a guard living
-  # inside the gated job cannot prevent the wait -- it executes only after someone
-  # has already been asked to approve. A docs-only push therefore parked a run in
-  # "waiting" against prod indefinitely.
-  #
-  # This job carries no environment, so it runs immediately and decides whether a
-  # deploy is both configured and necessary. Reviewers are only asked when there is
-  # something real to approve.
-  precheck:
-    runs-on: ubuntu-latest
-    outputs:
-      deploy: ${{ steps.decide.outputs.deploy }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { fetch-depth: 0 }
-
-      - id: decide
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [ -z "${{ vars.AWS_APPLY_ROLE_ARN }}" ]; then
-            echo "AWS_APPLY_ROLE_ARN is not set; there is nothing to deploy."
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          before="${{ github.event.before }}"
-          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
-            changed="$(git show --name-only --format= "${{ github.sha }}")"
-          else
-            changed="$(git diff --name-only "$before" "${{ github.sha }}" 2>/dev/null \
-              || git show --name-only --format= "${{ github.sha }}")"
-          fi
-
-          # Only infrastructure paths can change what an apply would do. A README or
-          # a diagram cannot, and must not cost a reviewer an approval prompt.
-          if printf '%s\n' "$changed" | grep -qE '^(live/|catalog/|modules/)'; then
-            echo "infrastructure paths changed; an apply is warranted."
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "no infrastructure paths changed; skipping apply."
-            printf '%s\n' "$changed" | sed 's/^/  /'
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-          fi
-
   management:
-    needs: precheck
-    if: needs.precheck.outputs.deploy == 'true'
     uses: ./.github/workflows/apply-stack.yml
     with:
       stack: management/us-west-2/global
@@ -81,8 +40,7 @@ jobs:
     secrets: inherit
 
   staging:
-    needs: [precheck, management]
-    if: needs.precheck.outputs.deploy == 'true'
+    needs: management
     uses: ./.github/workflows/apply-stack.yml
     with:
       stack: staging/us-west-2/staging
@@ -90,10 +48,47 @@ jobs:
     secrets: inherit
 
   prod:
-    needs: [precheck, staging]
-    if: needs.precheck.outputs.deploy == 'true'
+    needs: staging
     uses: ./.github/workflows/apply-stack.yml
     with:
       stack: prod/us-west-2/prod
       environment: prod
     secrets: inherit
+
+  # Say what the run actually did.
+  #
+  # GitHub records a deployment for every job that enters an environment and marks it "success"
+  # whenever that job exits 0 -- including when the guard inside skipped the apply because no role
+  # is configured. Left alone the Environments panel therefore reads "deployed successfully" for a
+  # run that touched no AWS account, which contradicts the reference boundary stated in the README.
+  #
+  # This job carries no `environment:`, so it never waits on a protection rule, and it runs last so
+  # its status lands AFTER the one Actions writes for each stack job. It only speaks when there was
+  # no role to deploy with; a real apply keeps Actions' own status untouched.
+  label:
+    needs: [management, staging, prod]
+    if: always() && vars.AWS_APPLY_ROLE_ARN == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Mark the deployments as guard no-ops
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for env in management staging prod; do
+            id="$(gh api "repos/${{ github.repository }}/deployments?environment=$env&sha=${{ github.sha }}" \
+                    --jq '.[0].id // empty')"
+            if [ -z "$id" ]; then
+              echo "no deployment recorded for $env; nothing to label."
+              continue
+            fi
+            gh api -X POST "repos/${{ github.repository }}/deployments/$id/statuses" \
+              -f state=success \
+              -f description='No-op: guard pass only, no AWS apply (AWS_APPLY_ROLE_ARN unset)' \
+              -f environment_url="${{ github.server_url }}/${{ github.repository }}#reference-boundary" \
+              >/dev/null
+            echo "labelled $env deployment $id as a guard no-op."
+          done
