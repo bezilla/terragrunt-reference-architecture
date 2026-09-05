@@ -161,6 +161,20 @@ Routing is by severity: `modules/observability/alerting.tf` maps the `severity` 
 event severity, so a fast burn pages and a slow burn opens a lower-urgency incident. The routing key
 is a variable, empty by default, stored in a Kubernetes Secret — never committed.
 
+![Prometheus alerts page: the slo-burn-rate group loaded from slo-burn-rate.yaml showing FIRING (2), with SLOErrorBudgetFastBurn expanded to reveal its expression service:error_ratio:rate5m greater than 0.0144 and service:error_ratio:rate1h greater than 0.0144, a for duration of 2m, severity critical, and two firing instances for checkout-api and search-api at an error ratio of 0.0800; SLOErrorBudgetSlowBurn below also shows FIRING (2)](docs/images/slo-burn-rate-alerts.png)
+
+*The rules above, actually firing. The rule YAML was rendered from `slo.tf` by the module itself —
+not retyped — and loaded into a local Prometheus alongside the recording rules from `prometheus.tf`.
+Six hours of synthetic `http_server_request_duration_seconds_count` series at a steady 8% error
+ratio give the 5m, 30m, 1h and 6h windows real history, which is why both pairs breach: 8% is well
+over the 1.44% fast threshold and the 0.60% slow one. The thresholds in frame — `0.0144` and
+`0.006` — are what `slo.tf` computes from the default `slo_target = 0.999`, not values typed for the
+screenshot.*
+
+*What this is not: a deployed cluster. There is no EKS, no collector and no real traffic here — only
+the module's own rule output evaluated against a synthetic feed, which is enough to prove the rules
+load, evaluate and fire, and nothing more than that.*
+
 ## Kafka bus monitoring
 
 Source: `modules/observability/slo.tf`. These rules exist **only when `var.kafka.enabled`** — the
