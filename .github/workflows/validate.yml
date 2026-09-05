@@ -61,7 +61,7 @@ jobs:
         run: for a in management staging prod; do cp live/$a/account.hcl.example live/$a/account.hcl; done
 
       - name: Offline validate (no credentials)
-        run: make validate ENV=staging
+        run: make validate-all
 
   test:
     runs-on: ubuntu-latest

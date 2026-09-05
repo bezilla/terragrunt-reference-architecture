@@ -4,6 +4,7 @@
 # override on the command line, e.g. `make plan ENV=staging`.
 
 ENV ?= prod
+ENVS      := staging prod
 STACK_DIR := live/$(ENV)/us-west-2/$(ENV)
 MGMT_DIR  := live/management/us-west-2/global
 
@@ -20,7 +21,7 @@ MGMT_DIR  := live/management/us-west-2/global
 OFFLINE_VALIDATE = TG_DISABLE_BACKEND=true terragrunt run --all validate \
 	--non-interactive --no-dependency-outputs --experiment optional-dependency-outputs
 
-.PHONY: fmt fmt-check validate lint test docs plan generate scan clean help
+.PHONY: fmt fmt-check validate validate-all lint test docs plan generate scan clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -39,6 +40,16 @@ generate: ## Generate the stack for ENV (default prod)
 validate: ## Offline validate: management + ENV stacks, no AWS credentials required
 	cd $(MGMT_DIR) && terragrunt stack generate && $(OFFLINE_VALIDATE)
 	cd $(STACK_DIR) && terragrunt stack generate && $(OFFLINE_VALIDATE)
+
+# What CI runs. `validate ENV=x` covers management plus ONE environment, which left prod --
+# and with it the two units only prod declares (acm-certificate, cloudfront-waf) -- unvalidated
+# on every push. This target is the one that makes "validate across all stacks" true.
+validate-all: ## Offline validate EVERY stack: management + all environments
+	cd $(MGMT_DIR) && terragrunt stack generate && $(OFFLINE_VALIDATE)
+	@for e in $(ENVS); do \
+		echo "== live/$$e/us-west-2/$$e"; \
+		( cd live/$$e/us-west-2/$$e && terragrunt stack generate && $(OFFLINE_VALIDATE) ) || exit 1; \
+	done
 
 lint: ## Run tflint across all modules
 	@for d in modules/*/; do echo "== $$d"; (cd $$d && tflint) || exit 1; done
