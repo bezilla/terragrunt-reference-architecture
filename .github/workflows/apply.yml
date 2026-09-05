@@ -140,16 +140,48 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REASON: ${{ needs.precheck.outputs.reason }}
         run: |
-          set -euo pipefail
+          # Deliberately NOT `set -e`. These records are informational: they tell the Environments
+          # panel which commit main is on. Nothing downstream reads them, so a 403, a rate limit or
+          # a malformed response must not turn a docs-only push red. Every call is checked by hand
+          # and a failure warns and moves on; the run stays green and the panel simply lags.
+          set -uo pipefail
+
+          # NOTE: this list duplicates the environments named in the `with:` blocks of the
+          # management/staging/prod jobs above. There is no way to derive one from the other in
+          # workflow syntax. ADD A FOURTH ENVIRONMENT TO THE CHAIN AND YOU MUST ADD IT HERE TOO,
+          # or that environment silently stops being recorded on non-deploying pushes.
+          envs="management staging prod"
+
           url="${{ github.server_url }}/${{ github.repository }}#reference-boundary"
-          for env in management staging prod; do
-            id="$(jq -nc --arg r "${{ github.sha }}" --arg e "$env" --arg d "$REASON" \
-                    '{ref:$r, environment:$e, task:"deploy", auto_merge:false,
-                       required_contexts:[], description:$d, transient_environment:false,
-                       production_environment:($e=="prod")}' \
-                  | gh api -X POST "repos/${{ github.repository }}/deployments" --input - --jq '.id')"
-            jq -nc --arg d "$REASON" --arg u "$url" \
-              '{state:"success", description:$d, environment_url:$u, auto_inactive:false}' \
-              | gh api -X POST "repos/${{ github.repository }}/deployments/$id/statuses" --input - >/dev/null
+          failed=0
+          for env in $envs; do
+            # production_environment stays false so both paths label prod identically -- Actions
+            # writes false for its own deployments, and a flag that disagrees between the two paths
+            # is worse than one that is merely conservative.
+            payload="$(jq -nc --arg r "${{ github.sha }}" --arg e "$env" --arg d "$REASON" \
+              '{ref:$r, environment:$e, task:"deploy", auto_merge:false, required_contexts:[],
+                description:$d, transient_environment:false, production_environment:false}')"
+
+            if ! id="$(printf '%s' "$payload" \
+                 | gh api -X POST "repos/${{ github.repository }}/deployments" --input - --jq '.id' 2>&1)"; then
+              echo "::warning::could not create the $env deployment record: $id"
+              failed=$((failed + 1)); continue
+            fi
+            if [ -z "$id" ] || [ "$id" = "null" ]; then
+              echo "::warning::the $env deployment was accepted but returned no id; skipping its status."
+              failed=$((failed + 1)); continue
+            fi
+
+            if ! err="$(jq -nc --arg d "$REASON" --arg u "$url" \
+                 '{state:"success", description:$d, environment_url:$u, auto_inactive:false}' \
+                 | gh api -X POST "repos/${{ github.repository }}/deployments/$id/statuses" --input - 2>&1)"; then
+              echo "::warning::recorded $env deployment $id but could not set its status: $err"
+              failed=$((failed + 1)); continue
+            fi
             echo "recorded $env deployment $id -- $REASON"
           done
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::notice::$failed of 3 environment records were not written; the panel will lag this commit."
+          fi
+          exit 0
