@@ -121,7 +121,7 @@ Each links to its ADR:
 - [Tagging via default_tags](docs/adr/0007-tagging-and-default-tags.md) — baseline tags once, in the provider.
 - [Deploy pipeline](docs/adr/0008-deploy-pipeline-apply-on-merge.md) — apply on merge, gated by a prod environment reviewer.
 - [Observability & the OTel collector](docs/adr/0009-otel-collector-and-optional-kafka-bus.md) — the collector as the cloud-portability seam; Kafka only above a stated bar.
-- [Kubernetes version & upgrade policy](docs/adr/0010-kubernetes-version-and-upgrade-policy.md) — track standard support, one behind newest; control plane → add-ons → nodes.
+- [Kubernetes version & upgrade policy](docs/adr/0010-kubernetes-version-and-upgrade-policy.md) — pin the oldest minor still in standard support; control plane → add-ons → nodes.
 
 Monitoring is shown mid-migration on purpose: the incumbent `datadog-monitors` and the portable OpenTelemetry collector layer run side by side, the export seam letting them coexist rather than forcing a big-bang cutover.
 The retirement criteria for the Datadog unit — and what stays vendor-native on purpose — are in [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).

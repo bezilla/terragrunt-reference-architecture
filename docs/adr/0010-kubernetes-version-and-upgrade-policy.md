@@ -14,12 +14,13 @@ higher hourly rate, and the version stops receiving new AWS-side features. As of
 with `1.33` having left standard support on 2026-07-29.
 
 ## Decision
-Track a version **in standard support, one behind the newest**, and move deliberately.
+Track the **oldest minor still in standard support**, and move deliberately.
 
-`1.34` is the pin today: standard support, and far enough from the frontier that add-on and CSI
-ecosystems have caught up. Being one behind the newest is the point, not laziness — `1.35` removes
-cgroup v1 and ends containerd 1.x support, and `1.36` permanently disables `gitRepo` volumes and
-changes SELinux volume labelling. Those are exactly the changes worth letting someone else hit first.
+`1.34` is the pin today: the oldest of the three minors in standard support, and far enough from
+the frontier that add-on and CSI ecosystems have caught up. Sitting at the back of the
+standard-support window is the point, not laziness — `1.35` removes cgroup v1 and ends containerd
+1.x support, and `1.36` permanently disables `gitRepo` volumes and changes SELinux volume
+labelling. Those are exactly the changes worth letting someone else hit first.
 
 The version lives in the stack files (`live/<account>/<region>/<env>/terragrunt.stack.hcl`), one
 value per environment, so staging can move first and prod follows.
@@ -42,7 +43,9 @@ Then repeat the whole sequence in prod. Never move both environments in one chan
 - The pin is a decision with a date attached, not a number someone typed once.
 - Standard support keeps the cluster off extended-support billing and inside the window where AWS
   ships fixes.
-- One-behind-newest costs a few months of newer features and buys a version whose breaking changes
-  are already documented by other people.
+- Trailing the standard-support window costs a few months of newer features and buys a version
+  whose breaking changes are already documented by other people.
+- It also buys the least runway: the oldest standard minor is the next one to leave standard
+  support, so this pin obliges the sequencing above to run before that date rather than after it.
 - This ADR does not automate the upgrade. Nothing here watches the support calendar; that remains a
   human obligation, which is the honest state of a repository that is validated but not operated.

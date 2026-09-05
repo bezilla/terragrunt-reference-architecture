@@ -2,6 +2,15 @@
 
 In-database roles, logical databases, and generated credentials on a **shared** Aurora cluster — one cluster hosting many application databases, each with its own owning role and a generated password stored in SSM Parameter Store (SecureString). Uses the `cyrilgdn/postgresql` provider (configured by the caller). A shared-cluster, many-databases data pattern.
 
+**Not wired into the reference stacks, on purpose.** Every other module here has a
+`catalog/units/` entry and appears in a `live/` stack; this one does not. The `cyrilgdn/postgresql`
+provider authenticates against a *running* database, so even `plan` needs network reachability to a
+live Aurora cluster and a working credential — neither of which exists in a credential-free offline
+validation, which is the bar every unit in this repo has to clear. It ships as a module you can
+adopt once you have a cluster to point it at: add a unit that depends on `aurora-postgres`, pass the
+cluster endpoint and master credential into the provider, and apply it from somewhere with network
+access to the cluster (a bastion, a runner in the VPC, or a Kubernetes job) rather than from CI.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
