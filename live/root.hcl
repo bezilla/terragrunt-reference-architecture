@@ -7,6 +7,10 @@
 #   - the generated AWS provider (default_tags, account guardrail, optional assume_role)
 # It reads account.hcl / region.hcl / env.hcl from the directory hierarchy so that every value a
 # new user must change lives in exactly one place.
+#
+# Editing anything under live/ (as with catalog/ and modules/) is what the apply workflow treats as
+# an infrastructure change: such a push is the only kind that asks a reviewer to approve a prod
+# deploy. Pushes touching nothing else are recorded against the environments but deploy nothing.
 
 locals {
   account_vars = read_terragrunt_config(find_in_parent_folders("account.hcl"))
