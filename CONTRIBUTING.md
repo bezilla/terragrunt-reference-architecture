@@ -31,18 +31,34 @@ is in [AGENTS.md](AGENTS.md).
 The `identity` job in `.github/workflows/validate.yml` enforces it over the pushed
 range and every annotated tag.
 
-### There is no committed hook here, and there probably should be
+### The gate runs in two places
 
-The other five repositories in this family commit a `.githooks/pre-push` and point
-`core.hooksPath` at it via `make init`, so the rule travels with a clone and a bad
-commit is caught *before* it becomes permanent. This repository is the exception: its
-only gate is the CI job, which by definition runs after the commit already exists on a
-remote. Identity is baked into the commit hash and `refs/pull/N/head` is permanent, so
-"after" is sometimes too late to fix cleanly.
+```bash
+make init       # step 1 in any clone: sets core.hooksPath=.githooks
+make test-hook  # prove the gate rejects and accepts what it claims
+make identity   # run the gate over all of this repository's history
+```
 
-Adding one is an open recommendation, not a decision taken. It would need the same
-`check_trailers` logic the CI job carries, kept in step with it, and `make init` wired
-to set `core.hooksPath` — the shape the sibling repositories already use.
+`.githooks/pre-push` catches a bad commit *before* it becomes permanent; the `identity`
+job in `validate.yml` runs whether or not anyone remembered `make init`. Identity is
+baked into the commit hash and `refs/pull/N/head` is permanent — there are eight here —
+so catching it locally is not a convenience.
+
+Both copies carry the **same** `check_trailers` function. `.githooks/selftest.sh` hashes
+it out of `.githooks/pre-push` and out of the workflow (dedenting the YAML block scalar
+by its ten spaces first) and fails if they differ. Change the allowlist in one and the
+test tells you about the other.
+
+**`make init` makes git ignore `.git/hooks/` entirely** — that is what `core.hooksPath`
+does. If you kept hand-written hooks there they stop running, and `pre-commit install`
+no longer takes effect at that path. `.githooks/pre-commit` carries forward the piece
+worth keeping: the `gitleaks` scan against the gitignored `.gitleaks.local.toml`. Run
+`pre-commit run --all-files` or `make scan` explicitly for the rest.
+
+One thing that will bite: that scan walks the **working tree**, and `make validate-all`
+leaves vendored upstream modules under `.terraform/` whose example files carry a
+real-looking AWS account id. If the hook fires right after a validate run, `make clean`
+first.
 
 Conventional-commit messages (`feat(modules): ...`, `fix(live): ...`, `docs: ...`). One logical
 change per commit.

@@ -101,16 +101,22 @@ dependency bot's identity. That identity exists on no branch and no tag here. A 
 that flags a commit nobody authored and nobody can remove is a gate that cannot be
 satisfied, and a gate that cannot be satisfied gets switched off.
 
-**This repository has no committed hook.** There is a `pre-push` hook in `.git/hooks/`
-on the author's machine, but `.git/` does not travel with a clone, so a fresh clone gets
-this file and no local gate — the CI job is the only enforcement that survives cloning.
-The other five repositories in this family commit a `.githooks/pre-push` and set
-`core.hooksPath` via `make init`, which catches a bad commit before it becomes
-permanent rather than after. Adding one here is an open recommendation, not a decision
-taken; see the note in CONTRIBUTING.
+**There is now a committed hook too.** `.githooks/pre-push` enforces the same rule
+locally, before a commit can become permanent, and `make init` installs it by setting
+`core.hooksPath=.githooks`. It carries the *same* `check_trailers` function as the CI
+job — `.githooks/selftest.sh` hashes it out of both files and fails if they ever differ,
+so the local gate and the server gate cannot drift apart silently.
 
-`pre-commit` also runs `gitleaks` and two pre-push checks; install it with
-`pre-commit install --hook-type pre-commit --hook-type pre-push`.
+Run `make init` in every clone. `core.hooksPath` is per-clone configuration and does not
+travel with a clone, which is exactly why the CI job stays: it is the copy nobody can
+forget to install.
+
+**`make init` makes git ignore `.git/hooks/` entirely.** That is how `core.hooksPath`
+works, and it is worth knowing because this repository previously kept hand-written
+hooks there. `.githooks/pre-commit` carries forward the one part still worth having —
+the `gitleaks` scan against the gitignored `.gitleaks.local.toml`. It also means
+`pre-commit install` no longer takes effect at `.git/hooks/`; run `pre-commit run` (or
+`make scan`) explicitly instead.
 
 ## History
 
