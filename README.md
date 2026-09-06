@@ -27,13 +27,18 @@ Full write-up: [docs/architecture.md](docs/architecture.md).
 
 | Stack | Provisions | Rough monthly cost¹ |
 |---|---|---|
-| **management** | State bucket + KMS, GitHub OIDC provider, IAM users/groups/IRSA baseline | ~$5 |
+| **management** | GitHub OIDC provider, IAM users/groups/IRSA baseline | ~$0 |
 | **staging** | VPC (1 NAT), EKS + spot nodes, Aurora (1× t4g.medium), Redis (t4g.small), Route53, Datadog monitors | ~$300 |
 | **prod** | VPC (NAT/AZ), EKS + on-demand nodes, Aurora (2× r6g.large), Redis (r7g.large), CloudFront+WAF, ACM, Route53, monitors | ~$1,500 |
 
 ¹ Approximate, us-west-2 on-demand list prices, excluding data transfer and request charges. These
 are hand estimates; the `plan` workflow posts a precise [Infracost](https://www.infracost.io) diff
 on every PR once `INFRACOST_API_KEY` is set.
+
+The state bucket and its KMS key are in none of these stacks. Every account gets one, bootstrapped
+once by hand on its own lifecycle from `live/<account>/<region>/bootstrap/state-backend` — see step
+3 of the Quickstart and [ADR-0011](docs/adr/0011-state-bootstrap-outside-the-stacks.md). Budget a
+KMS key plus negligible storage per account for it, on top of the figures above.
 
 ## Quickstart
 
