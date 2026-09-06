@@ -175,7 +175,10 @@ jobs:
           fi
 
           # --- no attribution terms in any commit message in the range -----------
-          msg_hits="$(git log --format='%H%n%B' "$range" | grep -icE "$FORBIDDEN")"
+          # `|| true` is load-bearing: grep -c exits 1 when it counts zero, and
+          # `shell: bash` runs this under -e, so without it the job dies here on
+          # exactly the clean ranges it is meant to pass. grep still prints the 0.
+          msg_hits="$(git log --format='%H%n%B' "$range" | grep -icE "$FORBIDDEN" || true)"
           echo "commit-message lines matching a forbidden attribution term: $msg_hits"
           if [ "$msg_hits" -ne 0 ]; then
             git log --format='%H%n%B' "$range" | grep -inE "$FORBIDDEN" | sed 's/^/  /'
