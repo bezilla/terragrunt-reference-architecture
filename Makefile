@@ -29,7 +29,7 @@ BOOTSTRAP_DIR := live/$(ACCOUNT)/us-west-2/bootstrap/state-backend
 OFFLINE_VALIDATE = TG_DISABLE_BACKEND=true terragrunt run --all validate \
 	--non-interactive --no-dependency-outputs --experiment optional-dependency-outputs
 
-.PHONY: fmt fmt-check validate validate-all lint test docs plan generate bootstrap bootstrap-plan lock scan clean help
+.PHONY: fmt fmt-check validate validate-all lint test docs plan generate bootstrap bootstrap-plan lock scan clean help init test-hook identity
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -121,6 +121,19 @@ scan: ## Secret + origin-identifier scan (run from repo root; needs .gitleaks.lo
 # Removes only generated trees. The bootstrap terraform.tfstate files under
 # live/*/us-west-2/bootstrap/ are NOT generated and are deliberately left alone -- deleting one
 # loses the record of that account's state bucket, recoverable then only by import.
+init: ## Step 1 in any clone: install the committed git hooks
+	@git config core.hooksPath .githooks
+	@echo "core.hooksPath = $$(git config --get core.hooksPath)"
+	@command -v gitleaks >/dev/null 2>&1 \
+		|| { echo "gitleaks is not installed. The pre-push gate fails closed without it: brew install gitleaks"; exit 1; }
+	@echo "hooks installed -- NOTE: core.hooksPath makes git ignore .git/hooks/ entirely"
+
+test-hook: ## Prove the gate rejects and accepts what it claims, both directions
+	@./.githooks/selftest.sh
+
+identity: ## Run the pre-push gate over all of this repository's history
+	@./.githooks/pre-push --all-history
+
 clean: ## Remove generated stack + cache directories (never bootstrap state)
 	find . -type d -name '.terragrunt-stack' -prune -exec rm -rf {} +
 	find . -type d -name '.terragrunt-cache' -prune -exec rm -rf {} +
