@@ -60,6 +60,19 @@ leaves vendored upstream modules under `.terraform/` whose example files carry a
 real-looking AWS account id. If the hook fires right after a validate run, `make clean`
 first.
 
+The two checks that went quiet with `.git/hooks/` are deliberate losses, not casualties.
+A hand-written `commit-msg` there scanned the whole message for vendor names; nothing
+replaces it, and nothing should. The trailer allowlist in `.githooks/pre-push` catches
+attribution by *key*, from any tool whether or not the gate has heard of it, which is
+stronger than a name list that goes stale the day something new ships — but it reads the
+trailer block and nothing else, so a vendor name in a message **body** now passes. That is
+the reduction, taken knowingly. The tree-wide grep for the same names is gone for that
+reason and one more: it matched nothing across the full history of every repository in
+this family, and it walked `.terraform/`, which is exactly what made a clean tree
+unpushable after a validate run. The `gitleaks` scan above is the piece that was worth
+carrying forward, and it was carried forward. Every repository sharing this gate makes the
+same trade; consistency across them is the property worth keeping.
+
 Conventional-commit messages (`feat(modules): ...`, `fix(live): ...`, `docs: ...`). One logical
 change per commit.
 
