@@ -6,9 +6,11 @@
 # (use_lockfile = true in the Terragrunt remote_state config), which removes a whole resource and
 # its IAM surface (see docs/adr/0005).
 #
-# Chicken-and-egg: this module's own state is created locally, then migrated into the bucket it
-# creates. The README documents that one-time bootstrap. The KMS key does not depend on the
-# bucket, so both are created in the same apply.
+# Chicken-and-egg: this module's own state is local and STAYS local -- it is not migrated into the
+# bucket it creates. It is applied from live/<account>/<region>/bootstrap/state-backend, outside
+# every stack, once per account; the README documents where that state lives and how to import the
+# resources back if it is lost. The KMS key does not depend on the bucket, so both are created in
+# the same apply.
 
 resource "aws_kms_key" "state" {
   description             = "Encrypts OpenTofu/Terraform state in ${var.bucket_name}."

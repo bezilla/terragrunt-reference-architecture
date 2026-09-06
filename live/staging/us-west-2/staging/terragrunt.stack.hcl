@@ -5,19 +5,12 @@
 # per component into every environment. Run `terragrunt stack generate` then
 # `terragrunt run --all <cmd>` from here (or `make plan ENV=staging`).
 
-# Bootstrap unit. It creates the S3 bucket and KMS key that every OTHER unit in this
-# stack stores state in, so it cannot itself live in that bucket -- it deliberately does
-# not include the root config and runs on local state. Apply it ON ITS OWN, first:
-#
-#   terragrunt stack generate
-#   (cd .terragrunt-stack/state-backend && terragrunt apply)
-#
-# and only then `terragrunt run --all apply`. Running everything at once races: the other
-# units include root, so they try to initialise a backend in a bucket that does not exist.
-unit "state_backend" {
-  source = "${get_repo_root()}/catalog/units/state-backend"
-  path   = "state-backend"
-}
+# The S3 bucket and KMS key these units keep their state in are NOT part of this stack.
+# They are bootstrapped once per account from live/staging/us-west-2/bootstrap/state-backend
+# (`make bootstrap ACCOUNT=staging`) and must already exist before the first `run --all apply`.
+# Keeping the bootstrap out of the generated tree is what makes `run --all` safe to repeat:
+# .terragrunt-stack is regenerated on every checkout, so a unit holding local state there
+# would come back empty and try to recreate a bucket that already exists. See docs/adr/0011.
 
 unit "vpc" {
   source = "${get_repo_root()}/catalog/units/vpc"

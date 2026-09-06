@@ -6,6 +6,10 @@ name: apply
 # and "prod". Put required reviewers on "prod" (and optionally a wait timer) so a human approves
 # production applies. The jobs run in order management -> staging -> prod; a failure stops the chain.
 #
+# It does NOT bootstrap state. Each account's state bucket is created once, by hand, before its
+# first apply (`make bootstrap ACCOUNT=<account>`); see docs/adr/0011. The stacks applied here
+# assume it exists.
+#
 # Authenticates with OIDC via the AWS_APPLY_ROLE_ARN repository variable. Unset => the guard inside
 # each stack job skips the apply. The apply role's trust policy is the plan role's, with the sub
 # condition scoped to `repo:<OWNER>/<REPO>:ref:refs/heads/main` and (ideally) `:environment:<name>`.

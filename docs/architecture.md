@@ -20,11 +20,15 @@ gateway endpoints.
 
 ## State & identity
 Each account keeps its own state in an **S3 bucket with native locking** (no DynamoDB), encrypted
-with a per-bucket KMS key. Deploys run from **GitHub Actions via OIDC** — a short-lived role, no
+with a per-bucket KMS key. That bucket is bootstrapped once per account from
+`live/<account>/<region>/bootstrap/state-backend`, deliberately outside every stack so no
+`run --all` can plan, apply or destroy it — a separate lifecycle from the stacks it serves
+(see [ADR-0011](adr/0011-state-bootstrap-outside-the-stacks.md)). Deploys run from **GitHub Actions via OIDC** — a short-lived role, no
 static keys. Inside the cluster, workloads use **IRSA** to assume scoped roles rather than sharing
 node credentials.
 
 ## Environments
 `staging` and `prod` are the same catalog units instantiated with different `values` (sizing, NAT
-strategy, deletion protection). `management` holds the state backend, the CI OIDC provider, and the
-IAM baseline. See [adding-an-environment](adding-an-environment.md).
+strategy, deletion protection). `management` runs no workloads: its stack holds the CI OIDC provider
+and the IAM baseline, and — like every account — its own state bucket, bootstrapped alongside the
+stack rather than inside it. See [adding-an-environment](adding-an-environment.md).

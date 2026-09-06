@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+- The `state-backend` bootstrap moved out of the generated stacks into per-account unit directories
+  at `live/<account>/<region>/bootstrap/state-backend`, with an explicit local backend pinned
+  outside `.terragrunt-stack`. No `terragrunt run --all` — plan, apply, destroy or the weekly drift
+  job — can reach it any more, and a repeat `run --all apply` on a fresh checkout no longer tries to
+  recreate an existing state bucket. Added `make bootstrap` / `make bootstrap-plan`, and ADR-0011.
+
 ## [0.1.0]
 
 ### Added

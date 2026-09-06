@@ -10,7 +10,8 @@ the lockfile approach.
 
 ## Decision
 Use `use_lockfile = true` in the `remote_state` config and provision no DynamoDB table. The
-`state-backend` module creates only the S3 bucket (plus a KMS key).
+`state-backend` module creates only the S3 bucket (plus a KMS key), applied once per account from
+the bootstrap unit outside the stacks (see [ADR-0011](0011-state-bootstrap-outside-the-stacks.md)).
 
 ## Consequences
 - One fewer resource to provision, tag, and pay for; a smaller IAM policy for state access.

@@ -4,14 +4,10 @@
 # the IAM users/groups/roles baseline. Each `unit` instantiates a catalog unit at `path` under the
 # generated `.terragrunt-stack/` directory. Run `terragrunt stack generate` (or any `terragrunt
 # run --all ...`) from this directory.
-
-# Bootstrap unit -- apply it ON ITS OWN before `run --all`. It creates the bucket the
-# other two units store their state in, and nothing here orders them, so a single
-# `run --all apply` on a fresh account races the backend against its own creation.
-unit "state_backend" {
-  source = "${get_repo_root()}/catalog/units/state-backend"
-  path   = "state-backend"
-}
+#
+# The state bucket these units keep their state in is NOT here. It is bootstrapped once per account
+# from live/management/us-west-2/bootstrap/state-backend (`make bootstrap ACCOUNT=management`) and
+# must already exist before the first `run --all apply`. See docs/adr/0011.
 
 unit "github_oidc" {
   source = "${get_repo_root()}/catalog/units/iam-github-oidc"

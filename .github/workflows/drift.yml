@@ -2,6 +2,10 @@ name: drift
 
 # Weekly drift detection. Plans every stack; if any shows changes, opens (or updates) an issue.
 # Uses the plan role (read-only is enough). Skips cleanly when AWS_PLAN_ROLE_ARN is unset.
+#
+# Stacks only. The per-account state-backend bootstrap is not a member of any stack, so `run --all`
+# never reaches it -- deliberately: drift on the bucket that holds everyone else's state should be
+# looked at by a person, not reported by the job whose own state lives in it.
 
 on:
   schedule:

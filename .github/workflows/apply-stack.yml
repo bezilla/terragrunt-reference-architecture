@@ -1,6 +1,12 @@
 name: apply-stack
 
 # Reusable single-stack apply, called by apply.yml once per environment.
+#
+# Assumes the account's state bucket ALREADY EXISTS. Bootstrapping it is a separate, once-per-
+# account operation run by hand outside CI (`make bootstrap ACCOUNT=<account>`, see docs/adr/0011):
+# its unit sits outside every terragrunt.stack.hcl, so the `run --all` below cannot reach it. On an
+# account that was never bootstrapped this job fails at backend initialisation, which is the
+# intended failure -- CI creating the bucket it stores its own state in is the loop worth refusing.
 on:
   workflow_call:
     inputs:

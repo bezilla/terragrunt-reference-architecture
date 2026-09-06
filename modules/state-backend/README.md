@@ -4,33 +4,72 @@ Bootstrap module for the OpenTofu/Terraform remote state backend: a customer-man
 
 ## Bootstrap
 
-This module stores the state for *all other* state, so it cannot store its own state in the bucket it creates. **Its state stays local, by design** — the catalog unit that instantiates it deliberately does not include the root config, and therefore generates no S3 backend at all.
+This module stores the state for *all other* state, so it cannot store its own state in the bucket
+it creates. **Its state stays local, by design** — the unit that instantiates it deliberately does
+not include the root config, and therefore generates no S3 backend at all.
 
-Run it on its own, once per account, before anything else in that account:
+It is applied from a hand-written unit directory that sits outside every `terragrunt.stack.hcl`:
+
+```
+live/<account>/<region>/bootstrap/state-backend/
+```
+
+Nothing generates that directory, so nothing deletes it, and `terragrunt run --all` from a stack
+directory cannot reach it — no plan, apply, destroy or drift run manages the bucket the rest of the
+account depends on. Once per account, before that account's stack is applied for the first time:
 
 ```bash
-cd live/<account>/<region>/<env>
-terragrunt stack generate
-(cd .terragrunt-stack/state-backend && terragrunt apply)   # local state
-terragrunt run --all apply                                  # everything else, now that the bucket exists
+make bootstrap-plan ACCOUNT=staging     # review
+make bootstrap ACCOUNT=staging          # bucket + KMS key, on local state
 ```
+
+and only then `make plan ENV=staging` / `terragrunt run --all apply` from the stack directory.
+[ADR-0011](../../docs/adr/0011-state-bootstrap-outside-the-stacks.md) has the full reasoning.
+
+### Where its state lives
+
+`live/<account>/<region>/bootstrap/state-backend/terraform.tfstate`, on the machine that ran the
+bootstrap. The unit generates a local backend pinned to that path with `get_terragrunt_dir()`;
+without it OpenTofu would write into `.terragrunt-cache` and lose the file to the next
+`make clean`. The file is gitignored, is never present in CI, and `make clean` does not remove it.
+
+### Recovery is by import, not by re-running
+
+**`make bootstrap` is a once-per-account operation, not an idempotent one.** There is no shared copy
+of the state file. Run it on a second machine, or after losing the file, and OpenTofu sees empty
+state and tries to create a bucket and KMS key that already exist. Re-adopt the existing resources
+instead — all eight of them, from the bootstrap unit directory:
+
+```bash
+cd live/<account>/<region>/bootstrap/state-backend
+
+B=tfstate-<account-id>-<region>                 # the bucket name
+K=<kms-key-id>                                  # aws kms describe-key --key-id alias/$B
+
+terragrunt import aws_kms_key.state                                     "$K"
+terragrunt import aws_kms_alias.state                                   "alias/$B"
+terragrunt import aws_s3_bucket.state                                   "$B"
+terragrunt import aws_s3_bucket_ownership_controls.state                "$B"
+terragrunt import aws_s3_bucket_versioning.state                        "$B"
+terragrunt import aws_s3_bucket_server_side_encryption_configuration.state "$B"
+terragrunt import aws_s3_bucket_public_access_block.state               "$B"
+terragrunt import aws_s3_bucket_lifecycle_configuration.state           "$B"
+
+terragrunt plan                                 # expect: no changes
+```
+
+Back the state file up if you would rather not do that. Losing it is an inconvenience with a known
+recovery, not an outage — the bucket and key keep working throughout, because nothing in the normal
+apply path reads this state.
 
 **Why not migrate it into the bucket.** Migrating is the more common advice, and it is a reasonable
 choice, but it is not the one this repository makes. The migration has to be done by hand — adding a
-backend block the unit does not generate, then `tofu init -migrate-state` — and it leaves the bucket's
-own state inside the bucket, so a bucket-destroying accident takes the record of the bucket with it.
-
-The trade is deliberate: this is two resources that change almost never, and if the local state file
-is lost they are recoverable by import rather than by rebuild:
-
-```bash
-tofu import aws_s3_bucket.state tfstate-<account-id>-<region>
-tofu import aws_kms_key.state   <key-id>
-```
-
-Back the file up if you like, but losing it is an inconvenience, not an outage. If you prefer the
-migration model, nothing here stops you — add the backend block and re-init; just do it consistently
-and update the quickstart in the top-level README to match.
+backend block the unit does not generate, then `tofu init -migrate-state` — and it leaves the
+bucket's own state inside the bucket, so a bucket-destroying accident takes the record of the bucket
+with it. The trade is deliberate: these are resources that change almost never, and the recovery
+above is bounded. If you prefer the migration model, nothing here stops you — add the backend block
+and re-init; just do it consistently across accounts and update the quickstart in the top-level
+README to match.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

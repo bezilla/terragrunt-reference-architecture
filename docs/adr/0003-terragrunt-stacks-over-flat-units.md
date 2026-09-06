@@ -18,7 +18,9 @@ one thing).
 - Environments differ by data (`values` in the stack file), not by copied directories. staging and
   prod share the same catalog units.
 - A generation step: `terragrunt stack generate` materializes `.terragrunt-stack/` before
-  plan/apply. This is wrapped by `make` and gitignored.
+  plan/apply. This is wrapped by `make` and gitignored. Because that tree is regenerated on every
+  checkout, nothing holding durable local state can live in it — which is why the state-backend
+  bootstrap is not a stack member (see [ADR-0011](0011-state-bootstrap-outside-the-stacks.md)).
 - Stacks are newer; `optional-dependency-outputs` (used for offline validation) is still an
   experiment. Tool versions are pinned in `mise.toml` for that reason (see the Makefile note).
 - The "real" unit definitions live in `catalog/units/`, one indirection away from the environment

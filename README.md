@@ -54,35 +54,37 @@ $EDITOR live/*/account.hcl                       # set account_id, deploy_role_a
 # 2. Validate everything offline — no AWS credentials needed:
 make validate
 
-# 3. Bootstrap remote state. ONCE PER ACCOUNT, and it is its own operation.
+# 3. Bootstrap remote state. ONCE PER ACCOUNT, by hand, and it is its own lifecycle.
 #
 #    live/root.hcl derives the backend bucket per account (tfstate-<account-id>-<region>), so
-#    management, staging and prod each need their own. Every stack therefore carries a
-#    state-backend unit, and it must be applied ON ITS OWN first: the other units in the stack
-#    include the root config, so a single `run --all` on a fresh account races them against the
-#    creation of the bucket they are trying to initialise a backend in.
+#    management, staging and prod each need their own before anything else in that account can
+#    initialise a backend. The bootstrap unit lives OUTSIDE the environment stacks, at
+#    live/<account>/us-west-2/bootstrap/state-backend, so no `run --all` can plan, apply or
+#    destroy it — the bucket everything else stores state in is not something a stack owns.
 #
-#    The state-backend unit keeps LOCAL state permanently and by design — it cannot live in the
-#    bucket it creates. See modules/state-backend/README.md, including how to recover it by import
-#    if the local file is lost.
+#    It keeps LOCAL state permanently and by design (it cannot live in the bucket it creates),
+#    in that directory rather than in any generated tree. This step is NOT repeatable on a
+#    machine that lacks that state file: recovery is by import. See ADR-0011 and
+#    modules/state-backend/README.md before running it a second time anywhere.
 aws sso login                                    # or however you get credentials
+make bootstrap ACCOUNT=management                # bucket + KMS key, on local state
+
+# 4. Apply the management stack, then each workload account: bootstrap it, then apply its stack.
 cd live/management/us-west-2/global
 terragrunt stack generate
-(cd .terragrunt-stack/state-backend && terragrunt apply)   # bucket + KMS key, on local state
-terragrunt run --all apply                                  # everything else, into that bucket
+terragrunt run --all apply                       # into the bucket step 3 created
 cd -
 
-# 4. Deploy a stack (management is already applied above). Same two-step shape: bootstrap
-#    that account's state bucket on its own, then the rest of the stack.
+make bootstrap ACCOUNT=staging                   # once per account
 cd live/staging/us-west-2/staging
 terragrunt stack generate
-(cd .terragrunt-stack/state-backend && terragrunt apply)   # once per account, local state
-terragrunt run --all plan                                   # review
+terragrunt run --all plan                        # review
 terragrunt run --all apply
 #    Then repeat for prod. Order: management → staging → prod.
 ```
 
-CI does steps 3–4 for you via the `apply` workflow once you wire up OIDC (see [CI/CD](#cicd)).
+CI does step 4 for you via the `apply` workflow once you wire up OIDC (see [CI/CD](#cicd)).
+**Step 3 it deliberately does not do** — CI does not create the bucket it stores its own state in.
 
 ## Required inputs
 
@@ -103,7 +105,7 @@ Everything else has a safe default. These do not:
 |---|---|
 | `modules/` | 16 reusable OpenTofu modules (each with tests, a README, and a lockfile) |
 | `catalog/units/` | Terragrunt unit definitions that source the modules |
-| `live/` | `root.hcl` + per-account `account.hcl`/`region.hcl`/`env.hcl` + environment stacks |
+| `live/` | `root.hcl` + per-account `account.hcl`/`region.hcl`/`env.hcl` + environment stacks + the per-account state bootstrap |
 | `policy/` | OPA/conftest policies (tags, ingress, encryption, IMDSv2) + tests |
 | `docs/` | architecture, ADRs, and how-to guides |
 | `.github/workflows/` | validate (PR), plan (PR), apply (merge), drift (weekly) |
@@ -122,6 +124,7 @@ Each links to its ADR:
 - [Deploy pipeline](docs/adr/0008-deploy-pipeline-apply-on-merge.md) — apply on merge, gated by a prod environment reviewer.
 - [Observability & the OTel collector](docs/adr/0009-otel-collector-and-optional-kafka-bus.md) — the collector as the cloud-portability seam; Kafka only above a stated bar.
 - [Kubernetes version & upgrade policy](docs/adr/0010-kubernetes-version-and-upgrade-policy.md) — pin the oldest minor still in standard support; control plane → add-ons → nodes.
+- [State bootstrap outside the stacks](docs/adr/0011-state-bootstrap-outside-the-stacks.md) — a once-per-account lifecycle no `run --all` can reach.
 
 Monitoring is shown mid-migration on purpose: the incumbent `datadog-monitors` and the portable OpenTelemetry collector layer run side by side, the export seam letting them coexist rather than forcing a big-bang cutover.
 The retirement criteria for the Datadog unit — and what stays vendor-native on purpose — are in [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).
@@ -185,8 +188,11 @@ done
 # Aurora has deletion_protection and skip_final_snapshot=false: disable protection and take/accept
 # the final snapshot first, or the destroy will refuse. Then, last:
 cd live/management/us-west-2/global && terragrunt run --all destroy
-# The state bucket has versioning + a KMS key; empty and delete it by hand if you want it gone.
 ```
+
+The state buckets survive all of that on purpose: the bootstrap units are not part of any stack, so
+`run --all destroy` cannot reach them. Each bucket has versioning and a KMS key — empty and delete
+it by hand, per account, once you are sure nothing still needs the state inside it.
 
 ## CI/CD
 
@@ -198,10 +204,13 @@ Four workflows, all of which skip cleanly (with a message) when their AWS role v
   the plan against the conftest policies, and comments the plan + Infracost diff.
 - **apply** (merge to `main`) — applies management → staging → prod, each behind a GitHub
   Environment. **You must create these Environments** and put required reviewers on `prod`.
+  It assumes each account is already bootstrapped; it never creates a state bucket itself.
 - **drift** (weekly) — plans every stack and opens an issue if one has drifted.
 
-To adopt: run the `iam-github-oidc` module, set the two role ARNs as repository **Variables**, and
-create the three Environments. The exact IAM trust policy is documented at the top of
+To adopt: bootstrap each account's state backend (`make bootstrap ACCOUNT=<account>` — once, by
+hand, see [ADR-0011](docs/adr/0011-state-bootstrap-outside-the-stacks.md)), run the
+`iam-github-oidc` module, set the two role ARNs as repository **Variables**, and create the three
+Environments. The exact IAM trust policy is documented at the top of
 [`plan.yml`](.github/workflows/plan.yml). No long-lived AWS keys are used anywhere.
 
 ## Related

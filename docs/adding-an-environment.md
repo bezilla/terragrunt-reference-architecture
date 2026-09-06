@@ -35,5 +35,11 @@ An environment is one `terragrunt.stack.hcl` plus its account/region/env config.
    make plan ENV=qa
    ```
 
-That's the whole change: no module edits, no copied resource files. The environment differs from
+   No bootstrap step here. State is bootstrapped per **account**, not per environment: a `qa`
+   stack in the staging account writes into the bucket `make bootstrap ACCOUNT=staging` already
+   created, under its own `path_relative_to_include()` key. A new environment in an account that
+   has never been bootstrapped needs that once-per-account step first — see
+   [ADR-0011](adr/0011-state-bootstrap-outside-the-stacks.md).
+
+That's the whole change: no module edits, no copied resource files, and no new state backend. The environment differs from
 its siblings only by the `values` in its stack file and its three `*.hcl` config values.

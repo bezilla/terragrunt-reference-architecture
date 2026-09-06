@@ -1,4 +1,9 @@
 # OpenTofu / Terraform
+#
+# *.tfstate covers the per-account state-backend bootstrap files under
+# live/*/*/bootstrap/*/terraform.tfstate too. Those are deliberately local and deliberately NOT
+# committed: they are state, and they name real infrastructure. Losing one costs an import-based
+# recovery, not an outage -- see docs/adr/0011.
 .terraform/
 .terraform.tfstate.lock.info
 *.tfstate
@@ -13,6 +18,10 @@ override.tf.json
 # Terragrunt
 .terragrunt-cache/
 .terragrunt-stack/
+
+# The bootstrap units run OpenTofu against the shared module, so init drops a copy of the module's
+# lockfile beside them. The authoritative one is modules/state-backend/.terraform.lock.hcl.
+live/*/*/bootstrap/*/.terraform.lock.hcl
 
 # Variables that may hold real values (examples are tracked explicitly)
 *.tfvars
