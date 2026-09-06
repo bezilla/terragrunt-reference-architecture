@@ -110,3 +110,77 @@ jobs:
 
       - name: Module unit tests + policy tests
         run: make test
+
+  # Not a required status check. It reports; branch protection decides what to do
+  # with the report, and that is a repository setting, not this file's business.
+  identity:
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 because this job compares two commits that are not HEAD.
+      # The default shallow clone fetches one commit, so the base of the range
+      # would not exist locally and the walk would silently check nothing.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Identity and attribution over the pushed range
+        shell: bash
+        env:
+          # Read through the environment rather than interpolated into the script,
+          # so a ref or SHA can never be re-parsed as shell.
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -uo pipefail
+
+          CANONICAL='Paul Bezilla <bezilla@protonmail.com>'
+          # The forbidden terms are written with single-character brackets so this
+          # file matches them without containing them: in a POSIX extended regex
+          # [x] matches exactly x. Do not "simplify" the brackets away.
+          FORBIDDEN='c[l]aude|anthrop[i]c|co-auth[o]red'
+
+          Z=0000000000000000000000000000000000000000
+          status=0
+
+          # A first push to a branch reports an all-zero base, and a force push
+          # reports a base that is no longer an ancestor. Both fall back to every
+          # commit reachable from the head, which checks more than the range, never
+          # less -- the safe direction for a gate.
+          if [ -z "${BASE_SHA}" ] || [ "${BASE_SHA}" = "$Z" ] \
+             || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            range="${HEAD_SHA}"
+          elif ! git merge-base --is-ancestor "${BASE_SHA}" "${HEAD_SHA}"; then
+            range="${HEAD_SHA}"
+          else
+            range="${BASE_SHA}..${HEAD_SHA}"
+          fi
+
+          count="$(git rev-list --count "$range")"
+          echo "range: $range"
+          echo "commits in range: $count"
+
+          if [ "$count" -eq 0 ]; then
+            echo "no commits in range; nothing to check"
+            exit 0
+          fi
+
+          # --- one identity, as author and as committer, on every commit ---------
+          identities="$(git log --format='%an <%ae>|%cn <%ce>' "$range" | sort -u)"
+          lines="$(printf '%s\n' "$identities" | grep -c .)"
+          echo "distinct author|committer pairs: $lines"
+          printf '%s\n' "$identities" | sed 's/^/  /'
+          if [ "$lines" -ne 1 ] || [ "$identities" != "${CANONICAL}|${CANONICAL}" ]; then
+            echo "::error::expected exactly one identity, '${CANONICAL}|${CANONICAL}'"
+            status=1
+          fi
+
+          # --- no attribution terms in any commit message in the range -----------
+          msg_hits="$(git log --format='%H%n%B' "$range" | grep -icE "$FORBIDDEN")"
+          echo "commit-message lines matching a forbidden attribution term: $msg_hits"
+          if [ "$msg_hits" -ne 0 ]; then
+            git log --format='%H%n%B' "$range" | grep -inE "$FORBIDDEN" | sed 's/^/  /'
+            echo "::error::commit messages in range contain forbidden attribution terms"
+            status=1
+          fi
+
+          exit "$status"
