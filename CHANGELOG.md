@@ -7,6 +7,31 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Changed
+- The `identity` job now allowlists commit trailers instead of scanning commit messages
+  for a list of vendor names. Only `Signed-off-by` carrying exactly
+  `Paul Bezilla <bezilla@protonmail.com>`, `Verified` and `Measured` may appear; every
+  other key is refused. The scan it replaced matched nothing across the full history of
+  all six repositories in this family, 207 commits — a denylist catches only what
+  somebody thought to write down, and cannot be completed. Trailers are read with
+  `git interpret-trailers --parse`, git's own definition, because a `^Key:` regex would
+  reject this repository's own commit prose: 18 distinct `Key: Value` shapes appear
+  across 36 commits here (`docs:`, `chore:`, `ci:`, `test:`, `once:`, `zone:`, `cannot:`
+  and more) and not one of them is a trailer.
+- The job now also checks annotated tags — tagger identity and annotation body against
+  the same allowlist. `v0.1.0` passes as it stands; nothing inspected it before.
+- Scope is unchanged: the pushed range with its all-zero-base and non-ancestor-base
+  fallbacks, plus `refs/tags`. `refs/pull/N/head` stays out of reach — eight of them
+  exist here and several carry a dependency bot's identity that appears on no branch
+  and no tag. Both fallback paths were exercised directly for the first time: each
+  expands to all 66 reachable commits, and each still refuses a bad commit.
+- AGENTS.md was rewritten rather than edited. It described a bracket-escaping
+  convention that no longer exists, and its enforcement section was stale — it claimed
+  there was no CI job checking identity, which stopped being true when the `identity`
+  job was added.
+
+**History was not rewritten.** No force push, no retag. Both the old and the new job
+were run over all 66 commits reachable from `5bb36e9` first: old accepted 66 / rejected
+0, new accepted 66 / rejected 0, disagreements 0.
 - The `state-backend` bootstrap moved out of the generated stacks into per-account unit directories
   at `live/<account>/<region>/bootstrap/state-backend`, with an explicit local backend pinned
   outside `.terragrunt-stack`. No `terragrunt run --all` — plan, apply, destroy or the weekly drift
