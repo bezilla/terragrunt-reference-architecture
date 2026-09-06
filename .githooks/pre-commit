@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# pre-commit: the local secret gate.
+#
+# This exists because `make init` points core.hooksPath at this directory, and
+# git then ignores .git/hooks/ ENTIRELY. A hand-written pre-commit lived there
+# doing two things: grepping the tree for vendor names, and running gitleaks
+# with the repository's local config. The first is gone -- the trailer allowlist
+# replaced it, and that grep walked build artefacts, so `make validate-all`
+# could make a clean tree unpushable. The second is real and is kept here.
+#
+# .gitleaks.local.toml is gitignored and holds the origin-name rule. If it is
+# absent this check does nothing, which is correct: it is a local augmentation
+# of the committed .gitleaks.toml, not a substitute for it.
+
+set -uo pipefail
+
+[ -f .gitleaks.local.toml ] || exit 0
+command -v gitleaks >/dev/null 2>&1 || exit 0
+
+if ! gitleaks dir --source . --config .gitleaks.local.toml --no-banner --redact \
+	--log-level error >/dev/null 2>&1; then
+	printf 'pre-commit: gitleaks (local config) found a match -- blocked.\n' >&2
+	printf '  If this fires after `make validate-all`, run `make clean` first:\n' >&2
+	printf '  the scan walks the working tree, and vendored module examples under\n' >&2
+	printf '  .terraform/ carry a real-looking AWS account id.\n' >&2
+	exit 1
+fi

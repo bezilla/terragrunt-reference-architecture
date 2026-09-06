@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+#
+# pre-push: the last gate before history leaves this machine.
+#
+# Three checks, ordered by how expensive each is to undo once pushed:
+#
+#   1. identity     every commit is authored AND committed by the one canonical
+#                   person, and every annotated tag is tagged by them. Identity
+#                   is baked into the object hash, so fixing it after a push
+#                   means rewriting published history.
+#   2. trailers     an allowlist. Only Signed-off-by (carrying exactly the
+#                   canonical identity), Verified and Measured (both free text)
+#                   may appear. Every other trailer key is refused.
+#   3. secrets      gitleaks over history, failing closed.
+#
+# Why this file exists at all. Until now this repository's only gate was the
+# `identity` job in .github/workflows/validate.yml, which by definition runs
+# AFTER a commit already exists on a remote. Identity is baked into the commit
+# hash and GitHub keeps refs/pull/N/head forever -- there are eight here -- so
+# "after" is sometimes too late to fix cleanly. This is the copy that catches it
+# first; the job is the copy nobody can forget to install.
+#
+# check_trailers below is kept in step with the copy in validate.yml, and
+# .githooks/selftest.sh compares them on every run. See CONTRIBUTING.md.
+#
+# Installed by `make init`, which sets core.hooksPath=.githooks.
+#
+# Usage:
+#   pre-push [remote] [url]      normal git hook mode, reads refs on stdin
+#   pre-push --all-history       scan refs/heads/* and refs/tags/* (manual)
+
+set -uo pipefail
+
+CANONICAL_NAME='Paul Bezilla'
+CANONICAL_EMAIL='bezilla@protonmail.com'
+CANONICAL="${CANONICAL_NAME} <${CANONICAL_EMAIL}>"
+
+# The whole policy, identical to the copy in validate.yml.
+ALLOWED_TRAILERS='Signed-off-by, Verified, Measured'
+
+ZERO='0000000000000000000000000000000000000000'
+
+fail() {
+	printf 'pre-push: %s\n' "$1" >&2
+	exit 1
+}
+
+check_trailers() {
+  local what="$1" text="$2" trailers line key value
+  trailers="$(printf '%s\n' "$text" | git interpret-trailers --parse 2>/dev/null || true)"
+  [ -z "$trailers" ] && return 0
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    key="${line%%:*}"
+    value="${line#*:}"
+    value="${value# }"
+    case "$key" in
+      'Signed-off-by')
+        if [ "$value" != "$CANONICAL" ]; then
+          echo "  ${what} carries \"Signed-off-by: ${value}\", expected \"${CANONICAL}\""
+          return 1
+        fi
+        ;;
+      'Verified'|'Measured')
+        : # free text, by design
+        ;;
+      *)
+        echo "  ${what} carries disallowed trailer \"${key}\" (allowed: ${ALLOWED_TRAILERS})"
+        return 1
+        ;;
+    esac
+  done <<< "$trailers"
+  return 0
+}
+
+# --- what to check ------------------------------------------------------------
+# refs/heads/* and refs/tags/* explicitly, never --all. `--all` also walks
+# refs/remotes/*, refs/stash and refs/pull/* -- refs this repository does not
+# author and cannot fix. Eight refs/pull heads exist here carrying a dependency
+# bot's identity that appears on no branch and no tag; a gate that flags a commit
+# nobody can remove is a gate that gets switched off.
+collect_commits() {
+	if [ "${1:-}" = '--all-history' ]; then
+		local refs
+		refs="$(git for-each-ref --format='%(refname)' refs/heads refs/tags)"
+		[ -z "$refs" ] && return 0
+		# shellcheck disable=SC2086
+		git rev-list $refs
+		return 0
+	fi
+
+	local _local_ref local_sha _remote_ref remote_sha ref_commits out=''
+	while read -r _local_ref local_sha _remote_ref remote_sha; do
+		[ -z "${local_sha:-}" ] && continue
+		[ "$local_sha" = "$ZERO" ] && continue
+
+		if [ "$remote_sha" = "$ZERO" ]; then
+			ref_commits="$(git rev-list "$local_sha" --not --remotes="${remote_name}")"
+		else
+			ref_commits="$(git rev-list "${remote_sha}..${local_sha}")"
+		fi
+		out="${out}${ref_commits}"$'\n'
+	done
+	printf '%s' "$out"
+}
+
+collect_tags() {
+	if [ "${1:-}" = '--all-history' ]; then
+		git for-each-ref --format='%(refname) %(objectname)' refs/tags
+		return 0
+	fi
+
+	local local_ref local_sha _remote_ref _remote_sha
+	while read -r local_ref local_sha _remote_ref _remote_sha; do
+		[ -z "${local_sha:-}" ] && continue
+		[ "$local_sha" = "$ZERO" ] && continue
+		case "$local_ref" in
+			refs/tags/*) printf '%s %s\n' "$local_ref" "$local_sha" ;;
+		esac
+	done
+}
+
+remote_name="${1:-origin}"
+
+push_input=''
+if [ "${1:-}" != '--all-history' ]; then
+	push_input="$(cat)"
+fi
+
+commits="$(collect_commits "${1:-}" <<< "$push_input" | grep -v '^$' | sort -u || true)"
+tags="$(collect_tags "${1:-}" <<< "$push_input" | grep -v '^$' || true)"
+
+if [ -z "$commits" ] && [ -z "$tags" ]; then
+	printf 'pre-push: no commits or tags to check\n' >&2
+	exit 0
+fi
+
+n=0
+if [ -n "$commits" ]; then
+	while read -r sha; do
+		[ -z "$sha" ] && continue
+		n=$((n + 1))
+
+		author="$(git show -s --format='%an <%ae>' "$sha")"
+		committer="$(git show -s --format='%cn <%ce>' "$sha")"
+
+		[ "$author" = "$CANONICAL" ] ||
+			fail "commit ${sha:0:12} author is '${author}', expected '${CANONICAL}'"
+		[ "$committer" = "$CANONICAL" ] ||
+			fail "commit ${sha:0:12} committer is '${committer}', expected '${CANONICAL}'"
+
+		check_trailers "commit ${sha:0:12}" "$(git show -s --format='%B' "$sha")" || exit 1
+	done <<< "$commits"
+fi
+
+t=0
+if [ -n "$tags" ]; then
+	while read -r ref obj; do
+		[ -z "${obj:-}" ] && continue
+		[ "$(git cat-file -t "$obj" 2>/dev/null || true)" = 'tag' ] || continue
+		t=$((t + 1))
+
+		raw="$(git cat-file tag "$obj")"
+		tagger="$(printf '%s\n' "$raw" | sed -n 's/^tagger \(.*\) [0-9][0-9]* [-+][0-9][0-9][0-9][0-9]$/\1/p' | head -1)"
+		[ "$tagger" = "$CANONICAL" ] ||
+			fail "tag ${ref#refs/tags/} tagger is '${tagger}', expected '${CANONICAL}'"
+
+		# Signature stripped before parsing: tag.gpgSign is on, and a signed tag
+		# appends its signature straight after the message with no blank line, so
+		# the last paragraph becomes message-plus-signature and parses as no
+		# trailers at all -- the check would silently pass on every signed tag.
+		body="$(printf '%s\n' "$raw" | sed '1,/^$/d' | sed '/^-----BEGIN .*SIGNATURE-----$/,$d')"
+		check_trailers "tag ${ref#refs/tags/}" "$body" || exit 1
+	done <<< "$tags"
+fi
+
+# --- 3. secrets ---------------------------------------------------------------
+# Fails closed: a gate that skips silently when its scanner is missing is not a
+# gate. `make init` checks for gitleaks for this reason.
+command -v gitleaks >/dev/null 2>&1 ||
+	fail 'gitleaks not found on PATH; install it (brew install gitleaks). This gate does not skip.'
+
+if ! leaks="$(gitleaks git --no-banner --redact --log-level error . 2>&1)"; then
+	printf 'pre-push: gitleaks found secrets in history:\n%s\n' "$leaks" >&2
+	exit 1
+fi
+
+printf 'pre-push: %d commit(s) and %d annotated tag(s) checked -- identity, trailers, secrets all clean\n' "$n" "$t" >&2
+exit 0
