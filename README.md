@@ -125,6 +125,7 @@ Each links to its ADR:
 - [Observability & the OTel collector](docs/adr/0009-otel-collector-and-optional-kafka-bus.md) — the collector as the cloud-portability seam; Kafka only above a stated bar.
 - [Kubernetes version & upgrade policy](docs/adr/0010-kubernetes-version-and-upgrade-policy.md) — pin the oldest minor still in standard support; control plane → add-ons → nodes.
 - [State bootstrap outside the stacks](docs/adr/0011-state-bootstrap-outside-the-stacks.md) — a once-per-account lifecycle no `run --all` can reach.
+- [Per-unit AWS provider generation](docs/adr/0012-per-unit-aws-provider-generation.md) — don't hand an AWS provider to units that don't use AWS.
 
 Monitoring is shown mid-migration on purpose: the incumbent `datadog-monitors` and the portable OpenTelemetry collector layer run side by side, the export seam letting them coexist rather than forcing a big-bang cutover.
 The retirement criteria for the Datadog unit — and what stays vendor-native on purpose — are in [ADR-0009](docs/adr/0009-otel-collector-and-optional-kafka-bus.md#coexistence-with-the-incumbent-monitoring-amendment).

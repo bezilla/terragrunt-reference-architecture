@@ -30,6 +30,18 @@ locals {
   # Optional role to assume for deploys. Empty string => no assume_role block (e.g. local validate).
   deploy_role_arn   = lookup(local.account_vars.locals, "deploy_role_arn", "")
   assume_role_block = local.deploy_role_arn == "" ? "" : "  assume_role {\n    role_arn = \"${local.deploy_role_arn}\"\n  }\n"
+
+  # Per-unit opt-outs, read from an optional unit.hcl beside the unit's terragrunt.hcl.
+  # get_terragrunt_dir() is the INCLUDING unit's directory, so each unit answers for itself.
+  unit_opts_file = "${get_terragrunt_dir()}/unit.hcl"
+  unit_opts      = fileexists(local.unit_opts_file) ? read_terragrunt_config(local.unit_opts_file).locals : {}
+
+  # Whether this unit gets the generated AWS provider. See docs/adr/0012: a unit whose module does
+  # not declare hashicorp/aws still got this provider block, which is an implicit provider
+  # requirement carrying NO version constraint. OpenTofu resolves that to the latest release at
+  # init and writes it into the unit's lockfile -- so a clean clone selected aws 6.63.0 in three
+  # units whose modules are locked at 6.62.0, and rewrote lockfiles while merely validating.
+  aws_provider = lookup(local.unit_opts, "aws_provider", true)
 }
 
 # Default all IaC to OpenTofu. Terraform works as a drop-in (see docs/adr/0001).
@@ -68,6 +80,7 @@ remote_state {
 generate "provider" {
   path      = "provider.tf"
   if_exists = "overwrite_terragrunt"
+  disable   = !local.aws_provider
   contents  = <<PROVIDER
 provider "aws" {
   region              = "${local.region}"

@@ -29,7 +29,7 @@ BOOTSTRAP_DIR := live/$(ACCOUNT)/us-west-2/bootstrap/state-backend
 OFFLINE_VALIDATE = TG_DISABLE_BACKEND=true terragrunt run --all validate \
 	--non-interactive --no-dependency-outputs --experiment optional-dependency-outputs
 
-.PHONY: fmt fmt-check validate validate-all lint test docs plan generate bootstrap bootstrap-plan scan clean help
+.PHONY: fmt fmt-check validate validate-all lint test docs plan generate bootstrap bootstrap-plan lock scan clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -81,6 +81,18 @@ validate-all: ## Offline validate EVERY stack: management + all environments + t
 	@for a in $(ACCOUNTS); do \
 		echo "== live/$$a/us-west-2/bootstrap/state-backend"; \
 		( cd live/$$a/us-west-2/bootstrap/state-backend && terragrunt run validate --non-interactive ) || exit 1; \
+	done
+
+# The platforms contributors and CI actually run on. `tofu init` locks only the platform it runs
+# on, so a lockfile refreshed on a laptop stops verifying on the runner -- regenerate with this
+# after bumping a provider constraint in a module's versions.tf, and commit the result.
+PLATFORMS := darwin_arm64 darwin_amd64 linux_amd64
+
+lock: ## Regenerate module lockfiles with hashes for every supported platform
+	@for d in modules/*/; do \
+		echo "== lock $$d"; \
+		( cd $$d && tofu init -backend=false -input=false >/dev/null && \
+		  tofu providers lock $(addprefix -platform=,$(PLATFORMS)) >/dev/null ) || exit 1; \
 	done
 
 lint: ## Run tflint across all modules

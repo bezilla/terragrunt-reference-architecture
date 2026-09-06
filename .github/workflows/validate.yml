@@ -61,7 +61,27 @@ jobs:
         run: for a in management staging prod; do cp live/$a/account.hcl.example live/$a/account.hcl; done
 
       - name: Offline validate (no credentials)
-        run: make validate-all
+        # shell: bash for -o pipefail; without it the pipeline reports tee's status and a failed
+        # make would pass. Same reasoning as the plan workflow.
+        shell: bash
+        run: |
+          set -euo pipefail
+          make validate-all 2>&1 | tee /tmp/validate.log
+
+      - name: Assert validation selected no unconstrained provider
+        # A unit inherits any generated provider block as a provider REQUIREMENT. If its module
+        # does not also declare that provider, the requirement carries no version constraint, and
+        # init resolves it to whatever the registry published today and writes the result into the
+        # unit's lockfile -- so an offline, read-only validate silently picks versions. Catching it
+        # needs the log: nothing under .terragrunt-stack/ is tracked, so git sees no change.
+        # See docs/adr/0012.
+        run: |
+          if grep -qE 'Finding latest version of' /tmp/validate.log; then
+            echo "::error::validation resolved a provider with no version constraint:"
+            grep -E 'Finding latest version of' /tmp/validate.log | sort -u
+            exit 1
+          fi
+          echo "no unconstrained provider resolution during validate"
 
   test:
     runs-on: ubuntu-latest

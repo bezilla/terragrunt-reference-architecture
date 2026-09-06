@@ -23,13 +23,23 @@ generate "k8s_provider" {
   path      = "provider_k8s.tf"
   if_exists = "overwrite_terragrunt"
   contents  = <<PROV
-data "aws_eks_cluster_auth" "this" {
-  name = "${dependency.eks.outputs.cluster_name}"
-}
 provider "kubernetes" {
   host                   = "${dependency.eks.outputs.cluster_endpoint}"
   cluster_ca_certificate = base64decode("${dependency.eks.outputs.cluster_certificate_authority_data}")
-  token                  = data.aws_eks_cluster_auth.this.token
+
+  # The token comes from the AWS CLI, not from an aws_eks_cluster_auth data source. That data
+  # source was the only reason this Kubernetes-only unit needed the AWS provider at all, and it
+  # also resolves at plan time and lands a 15-minute token in state. exec fetches one per
+  # invocation instead. It needs the `aws` CLI on PATH wherever plan/apply runs.
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks", "get-token",
+      "--cluster-name", "${dependency.eks.outputs.cluster_name}",
+      "--region", "${include.root.locals.region}",
+    ]
+  }
 }
 PROV
 }
