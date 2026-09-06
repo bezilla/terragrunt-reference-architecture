@@ -208,6 +208,10 @@ Four workflows, all of which skip cleanly (with a message) when their AWS role v
   It assumes each account is already bootstrapped; it never creates a state bucket itself.
 - **drift** (weekly) — plans every stack and opens an issue if one has drifted.
 
+Only pushes that touch infrastructure enter the environments, so only those ask the prod reviewer to
+approve — a docs-only push records a no-op deployment for each environment and prompts nobody. That
+prompt is deliberate; see [ADR-0008](docs/adr/0008-deploy-pipeline-apply-on-merge.md).
+
 To adopt: bootstrap each account's state backend (`make bootstrap ACCOUNT=<account>` — once, by
 hand, see [ADR-0011](docs/adr/0011-state-bootstrap-outside-the-stacks.md)), run the
 `iam-github-oidc` module, set the two role ARNs as repository **Variables**, and create the three
