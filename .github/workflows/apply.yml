@@ -132,22 +132,49 @@ jobs:
   # as a live AWS deployment. This job carries no `environment:` (so it never waits) and runs last
   # (so its status lands after Actions' own), and it speaks only when there was no role to deploy
   # with. A real apply keeps Actions' status untouched.
+  #
+  # Each environment is labelled from ITS OWN job result, never from another's. Checking only
+  # management was enough to relabel all three: management passes, staging then fails at checkout
+  # or tool install, prod is skipped for it -- and both got a green "approved no-op" written over
+  # the top of a failure. A `needs` job that failed or was skipped reports something other than
+  # 'success' here, and its deployment is left exactly as Actions recorded it.
   label:
-    needs: [management, staging, prod]
-    if: always() && needs.management.result == 'success' && vars.AWS_APPLY_ROLE_ARN == ''
+    needs: [precheck, management, staging, prod]
+    if: always() && needs.precheck.outputs.deploy == 'true' && vars.AWS_APPLY_ROLE_ARN == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
       deployments: write
     steps:
       - name: Mark the approved deployments as guard no-ops
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          # Read into the environment rather than interpolated into the loop body, so a result
+          # can never be word-split or re-parsed as shell.
+          RESULT_MANAGEMENT: ${{ needs.management.result }}
+          RESULT_STAGING: ${{ needs.staging.result }}
+          RESULT_PROD: ${{ needs.prod.result }}
         run: |
+          # Informational, like the `record` job: a failure to write a LABEL must not turn the run
+          # red on its own. It cannot hide a real failure either -- a failed management/staging/prod
+          # job already fails the workflow, and this job never writes a status for one.
           set -uo pipefail
           url="${{ github.server_url }}/${{ github.repository }}#reference-boundary"
           desc='No-op: approved, but no AWS role is configured so nothing was applied'
-          for env in management staging prod; do
+
+          for entry in "management:$RESULT_MANAGEMENT" "staging:$RESULT_STAGING" "prod:$RESULT_PROD"; do
+            env="${entry%%:*}"
+            result="${entry#*:}"
+
+            # 'failure', 'cancelled', and 'skipped' all land here. Skipped matters as much as
+            # failed: prod is skipped precisely when staging failed, and calling that a
+            # successful no-op is the same lie one job further down the chain.
+            if [ "$result" != "success" ]; then
+              echo "::notice::$env job result is '$result'; leaving its deployment status as Actions recorded it."
+              continue
+            fi
+
             id="$(gh api "repos/${{ github.repository }}/deployments?environment=$env&sha=${{ github.sha }}" \
                     --jq '.[0].id // empty' 2>/dev/null)" || id=""
             if [ -z "$id" ]; then

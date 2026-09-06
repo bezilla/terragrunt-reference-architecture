@@ -13,6 +13,11 @@ All notable changes to this project are documented here. The format is based on
   job — can reach it any more, and a repeat `run --all apply` on a fresh checkout no longer tries to
   recreate an existing state bucket. Added `make bootstrap` / `make bootstrap-plan`, and ADR-0011.
 
+### Fixed
+- `apply.yml` labelled staging and prod deployments as successful no-ops based on the management
+  job's result alone, which could paint a green status over a failed or skipped environment. Each
+  environment is now labelled from its own job result.
+
 ## [0.1.0]
 
 ### Added
