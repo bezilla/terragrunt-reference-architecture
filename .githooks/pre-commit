@@ -18,7 +18,7 @@ set -uo pipefail
 [ -f .gitleaks.local.toml ] || exit 0
 command -v gitleaks >/dev/null 2>&1 || exit 0
 
-if ! gitleaks dir --source . --config .gitleaks.local.toml --no-banner --redact \
+if ! gitleaks dir . --config .gitleaks.local.toml --no-banner --redact \
 	--log-level error >/dev/null 2>&1; then
 	printf 'pre-commit: gitleaks (local config) found a match -- blocked.\n' >&2
 	printf '  If this fires after `make validate-all`, run `make clean` first:\n' >&2
