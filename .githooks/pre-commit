@@ -4,7 +4,7 @@
 #
 # This exists because `make init` points core.hooksPath at this directory, and
 # git then ignores .git/hooks/ ENTIRELY. A hand-written pre-commit lived there
-# doing two things: grepping the tree for vendor names, and running gitleaks
+# doing two things: matching the tree against a name list, and running gitleaks
 # with the repository's local config. The first is gone -- the trailer allowlist
 # replaced it, and that grep walked build artefacts, so `make validate-all`
 # could make a clean tree unpushable. The second is real and is kept here.

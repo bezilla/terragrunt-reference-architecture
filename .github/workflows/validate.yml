@@ -138,11 +138,10 @@ jobs:
           # exactly; Verified and Measured are free text, recording evidence rather
           # than authorship. Every other key is refused.
           #
-          # An allowlist rather than a list of names to search for: a denylist catches
-          # only what somebody thought to write down, and is stale the day a tool ships
-          # using a word nobody predicted. Any tool that stamps provenance onto a commit
-          # does it through a trailer, so an unlisted key is refused whether or not this
-          # file has heard of what wrote it.
+          # An allowlist rather than a denylist: a denylist can only refuse what
+          # someone thought to write down, and the set of keys that do not exist yet
+          # cannot be enumerated. Refusing on the key means an unlisted key is refused
+          # whether or not this file has heard of it.
           ALLOWED_TRAILERS='Signed-off-by, Verified, Measured'
 
           Z=0000000000000000000000000000000000000000

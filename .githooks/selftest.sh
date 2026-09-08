@@ -167,9 +167,9 @@ rc="$(run_hook "$d" "$base")"
 rm -rf "$d"
 
 # --- 10: a mid-message Key: Value line is not a trailer -----------------------
-# This repository carries more of these than any other in the family: 18 distinct
-# shapes across 36 commits -- docs:, chore:, ci:, test:, once:, zone:, cannot: --
-# and not one is a trailer. A ^Key: regex would have rejected all of them.
+# This repository carries a lot of these: 20 distinct shapes across its 73 commits
+# -- docs:, chore:, ci:, test:, once:, zone:, cannot: -- and not one is a trailer.
+# A ^Key: regex would have rejected all of them.
 d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
 commit_msg "$d" 'Add a file
 
