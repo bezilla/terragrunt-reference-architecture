@@ -23,10 +23,6 @@ All notable changes to this project are documented here. The format is based on
   exist here and several carry a dependency bot's identity that appears on no branch
   and no tag. Both fallback paths were exercised directly for the first time: each
   expands to all 66 reachable commits, and each still refuses a bad commit.
-- The separate contributor policy document was rewritten rather than edited. It
-  described a bracket-escaping convention that no longer exists, and its enforcement
-  section was stale — it claimed there was no CI job checking identity, which stopped
-  being true when the `identity` job was added.
 - The commit identity and trailer policy documentation was consolidated into
   CONTRIBUTING.md and reworded. The separate policy document was removed; its content
   lives in CONTRIBUTING.md unchanged in substance. No gate, workflow or hook changed
